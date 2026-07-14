@@ -39,14 +39,22 @@ public class ArthasCommandExecutor {
     }
 
     public String execute(String agentId, String command) throws Exception {
+        // 优先使用 tunnel 方式（适用于远程和本地）
         if (tunnelHandler != null && tunnelHandler.isAgentOnline(agentId)) {
             try {
                 return executeViaTunnel(agentId, command);
             } catch (Exception e) {
                 logger.warn("tunnel execute failed for agent={}: {}", agentId, e.toString());
-                return executeViaTelnet(agentId, command);
+                // 对于远程场景，tunnel 失败后不应回退到 telnet（telnet 只能连本机）
+                // 只有当明确是本地 agent 时才尝试 telnet
+                String isLocal = System.getProperty("arthas.agent." + agentId + ".local");
+                if ("true".equals(isLocal)) {
+                    return executeViaTelnet(agentId, command);
+                }
+                throw e;
             }
         }
+        // 如果没有 tunnel handler 或 agent 不在线，尝试 telnet（仅适用于本地）
         return executeViaTelnet(agentId, command);
     }
 

@@ -14,6 +14,8 @@ public class ArthasProperties {
     /** Default telnet port for agents on this machine, used by executor to run commands directly. */
     private int telnetPort = 3658;
     private String version = "";
+    /** Password for MCP authentication. When set, clients must provide 'Authorization: Bearer <password>' header. */
+    private String password = "";
 
     public String getVersion() {
         if (version != null && !version.isBlank()) {
@@ -66,5 +68,13 @@ public class ArthasProperties {
 
     public void setTelnetPort(int telnetPort) {
         this.telnetPort = telnetPort;
+    }
+
+    public String getPassword() {
+        return password;
+    }
+
+    public void setPassword(String password) {
+        this.password = password;
     }
 }
