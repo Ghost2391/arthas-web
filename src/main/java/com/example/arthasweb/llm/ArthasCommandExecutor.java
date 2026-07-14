@@ -136,34 +136,47 @@ public class ArthasCommandExecutor {
                             ws.request(Long.MAX_VALUE);
                         }
 
-                        @Override
-                        public CompletionStage<?> onText(WebSocket ws, CharSequence data, boolean last) {
-                            String text = data.toString();
-                            logger.debug("tunnel ws text[{}] for agent={}: {}", initialDone ? "data" : "banner", agentId,
-                                    text.length() > 200 ? text.substring(0, 200) + "..." : text);
-
+                        private void appendData(WebSocket ws, String text) {
                             if (!initialDone) {
                                 output.append(text);
                                 String cleaned = clean(output.toString());
                                 if (PROMPT.matcher(cleaned).find()) {
                                     initialDone = true;
-                                    // 立即发送命令，避免 tunnel 关闭后无法发送
                                     logger.info("tunnel initial prompt received, sending command immediately: {}", command);
                                     ws.sendText(command + "\r\n", true);
                                     logger.info("command sent for agent={}", agentId);
                                     tunnelReady.complete(null);
                                     output.setLength(0);
                                 }
-                                return WebSocket.Listener.super.onText(ws, data, last);
+                            } else {
+                                output.append(text);
+                                String cleaned = clean(output.toString());
+                                logger.debug("tunnel partial output len={} for agent={}", cleaned.length(), agentId);
+                                if (PROMPT.matcher(cleaned).find()) {
+                                    result.complete(cleaned);
+                                    logger.info("tunnel command output complete for agent={}", agentId);
+                                }
                             }
+                        }
 
-                            output.append(text);
-                            String cleaned = clean(output.toString());
-                            if (PROMPT.matcher(cleaned).find()) {
-                                result.complete(cleaned);
-                                logger.info("tunnel command output complete for agent={}", agentId);
-                            }
+                        @Override
+                        public CompletionStage<?> onText(WebSocket ws, CharSequence data, boolean last) {
+                            String text = data.toString();
+                            logger.debug("tunnel ws text for agent={}: {}",
+                                    agentId, text.length() > 200 ? text.substring(0, 200) + "..." : text);
+                            appendData(ws, text);
                             return WebSocket.Listener.super.onText(ws, data, last);
+                        }
+
+                        @Override
+                        public CompletionStage<?> onBinary(WebSocket ws, java.nio.ByteBuffer data, boolean last) {
+                            byte[] bytes = new byte[data.remaining()];
+                            data.get(bytes);
+                            String text = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+                            logger.debug("tunnel ws binary for agent={}: {}",
+                                    agentId, text.length() > 200 ? text.substring(0, 200) + "..." : text);
+                            appendData(ws, text);
+                            return WebSocket.Listener.super.onBinary(ws, data, last);
                         }
 
                         @Override
