@@ -80,10 +80,24 @@ public class TunnelWebSocketHandler extends TextWebSocketHandler {
         }
         agentSessions.put(id, session);
         session.getAttributes().put("agentId", id);
-        logger.info("agent registered, id={}", id);
+        
+        // 标记 agent 是否为本地（通过检查远程地址是否为 localhost/127.0.0.1）
+        boolean isLocal = isLocalAddress(session.getRemoteAddress());
+        System.setProperty("arthas.agent." + id + ".local", String.valueOf(isLocal));
+        logger.info("agent registered, id={}, local={}", id, isLocal);
 
         String response = "/?method=agentRegister&id=" + id;
         session.sendMessage(new TextMessage(response));
+    }
+
+    private boolean isLocalAddress(java.net.SocketAddress address) {
+        if (address instanceof java.net.InetSocketAddress) {
+            java.net.InetAddress inetAddress = ((java.net.InetSocketAddress) address).getAddress();
+            return inetAddress.isAnyLocalAddress() || inetAddress.isLoopbackAddress() 
+                || "127.0.0.1".equals(inetAddress.getHostAddress()) 
+                || "0:0:0:0:0:0:0:1".equals(inetAddress.getHostAddress());
+        }
+        return false;
     }
 
     private void handleConnectArthas(WebSocketSession browserSession, Map<String, List<String>> params) throws Exception {

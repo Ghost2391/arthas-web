@@ -64,7 +64,37 @@ LLM_API_KEY=sk-xxx mvn spring-boot:run
 arthas:
   tunnel-path: /ws
   public-host: 203.0.113.10     # 留空则自动取请求 Host
+  password: your-secret-password  # MCP 认证密码，留空则禁用认证
 ```
+
+### MCP 身份验证
+
+如果设置了 `arthas.password`，所有 MCP 客户端请求必须提供正确的 Bearer Token：
+
+**服务器端配置** (`application.yml`)：
+```yaml
+arthas:
+  password: your-secret-password
+```
+
+**MCP 客户端配置** (JSON)：
+```json
+{
+  "mcpServers": {
+    "arthas": {
+      "url": "http://localhost:8080/mcp",
+      "http_headers": {
+        "Authorization": "Bearer your-secret-password"
+      }
+    }
+  }
+}
+```
+
+**注意事项**：
+- Header 字段名必须是 `http_headers`，而不是 `headers`
+- Token 格式必须是 `Bearer <password>`，密码需与服务器端完全一致
+- 密码为空时禁用认证（向后兼容），设置密码后所有请求必须认证
 
 ---
 

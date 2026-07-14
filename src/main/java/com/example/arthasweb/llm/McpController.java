@@ -35,11 +35,28 @@ public class McpController {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final ArthasCommandExecutor executor;
     private final TunnelWebSocketHandler tunnel;
+    private final String mcpPassword;
 
     public McpController(ArthasProperties props, TunnelWebSocketHandler tunnel,
                          @Value("${server.port:8080}") int serverPort) {
         this.executor = new ArthasCommandExecutor(props, serverPort, tunnel);
         this.tunnel = tunnel;
+        this.mcpPassword = props.getPassword();
+    }
+
+    /**
+     * Validate Authorization header if password is configured.
+     * Expects 'Authorization: Bearer <password>' format.
+     */
+    private boolean validateAuth(String authHeader) {
+        if (mcpPassword == null || mcpPassword.isEmpty()) {
+            return true; // no password configured, skip validation
+        }
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return false;
+        }
+        String token = authHeader.substring(7);
+        return mcpPassword.equals(token);
     }
 
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
@@ -49,7 +66,15 @@ public class McpController {
 
     @PostMapping(produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<String> post(@RequestBody String body,
-                                       @RequestHeader(value = "Mcp-Session-Id", required = false) String sessionId) {
+                                       @RequestHeader(value = "Mcp-Session-Id", required = false) String sessionId,
+                                       @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        // Validate authorization if password is configured
+        if (!validateAuth(authHeader)) {
+            logger.warn("mcp authentication failed for session={}", sessionId);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .header("Mcp-Session-Id", sessionId == null ? UUID.randomUUID().toString() : sessionId)
+                    .body("{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32000,\"message\":\"authentication failed\"}}");
+        }
         try {
             JsonNode req = objectMapper.readTree(body);
             String method = req.has("method") ? req.get("method").asText() : "";
