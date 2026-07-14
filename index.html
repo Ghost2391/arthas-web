@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arthas AI Inspector</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:        #0d0f14;
+  --bg2:       #13161e;
+  --bg3:       #1a1e28;
+  --bg4:       #222735;
+  --border:    #2a2f3f;
+  --border2:   #363c50;
+  --text:      #c8cdd8;
+  --text2:     #7c8494;
+  --text3:     #4a5068;
+  --accent:    #3b82f6;
+  --accent2:   #2563eb;
+  --accent-gl: rgba(59,130,246,.12);
+  --green:     #22c55e;
+  --green-gl:  rgba(34,197,94,.1);
+  --amber:     #f59e0b;
+  --amber-gl:  rgba(245,158,11,.1);
+  --red:       #ef4444;
+  --red-gl:    rgba(239,68,68,.1);
+  --teal:      #14b8a6;
+  --mono:      'IBM Plex Mono', monospace;
+  --sans:      'IBM Plex Sans', sans-serif;
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);line-height:1.5}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+::-webkit-scrollbar-thumb:hover{background:#4a5068}
+
+.app{display:flex;flex-direction:column;height:100vh}
+
+/* topbar */
+.topbar{display:flex;align-items:stretch;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0}
+.topbar-brand{display:flex;align-items:center;gap:10px;padding:0 20px;border-right:1px solid var(--border);flex-shrink:0}
+.brand-icon{width:28px;height:28px;background:linear-gradient(135deg,var(--accent),var(--teal));border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px}
+.brand-name{font-family:var(--mono);font-size:13px;font-weight:600;color:#e2e8f0;letter-spacing:.5px}
+.brand-ver{font-family:var(--mono);font-size:10px;color:var(--text3);background:var(--bg3);padding:1px 6px;border-radius:3px;border:1px solid var(--border)}
+.topbar-config{display:flex;align-items:center;gap:8px;padding:8px 16px;flex:1;flex-wrap:wrap}
+.cfg-label{font-family:var(--mono);font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;flex-shrink:0}
+.cfg-input{background:var(--bg3);border:1px solid var(--border);color:var(--text);font-family:var(--mono);font-size:12px;padding:5px 10px;border-radius:5px;outline:none;transition:border-color .15s,box-shadow .15s}
+.cfg-input:focus{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-gl)}
+.cfg-input.wide{width:240px}
+.cfg-input.mid{width:130px}
+.cfg-input.sm{width:72px}
+.cfg-sep{width:1px;height:20px;background:var(--border);flex-shrink:0;margin:0 4px}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;font-weight:500;padding:5px 14px;border-radius:5px;border:1px solid transparent;cursor:pointer;transition:all .15s;white-space:nowrap;flex-shrink:0}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-connect{background:var(--accent);color:#fff;border-color:var(--accent2)}
+.btn-connect:not(:disabled):hover{background:var(--accent2)}
+.btn-disconnect{background:var(--red-gl);color:var(--red);border-color:rgba(239,68,68,.3)}
+.btn-disconnect:not(:disabled):hover{background:rgba(239,68,68,.2)}
+.btn-ghost{background:var(--bg3);color:var(--text2);border-color:var(--border)}
+.btn-ghost:not(:disabled):hover{background:var(--bg4);border-color:var(--border2);color:var(--text)}
+.btn-confirm{background:var(--green-gl);color:var(--green);border-color:rgba(34,197,94,.3)}
+.btn-confirm:not(:disabled):hover{background:rgba(34,197,94,.2)}
+.btn-skip{background:var(--bg3);color:var(--text2);border-color:var(--border)}
+.btn-skip:not(:disabled):hover{background:var(--bg4)}
+
+/* statusbar */
+.statusbar{display:flex;align-items:center;background:var(--bg2);border-bottom:1px solid var(--border);padding:0 16px;height:30px;flex-shrink:0}
+.status-seg{display:flex;align-items:center;gap:6px;padding:0 14px;height:100%;border-right:1px solid var(--border);font-family:var(--mono);font-size:11px;color:var(--text3)}
+.status-seg:first-child{padding-left:0}
+.status-led{width:6px;height:6px;border-radius:50%;background:var(--border2);transition:all .3s}
+.status-led.on{background:var(--green);box-shadow:0 0 6px var(--green)}
+.status-led.warn{background:var(--amber);box-shadow:0 0 6px var(--amber);animation:pulse-led 1.5s infinite}
+@keyframes pulse-led{0%,100%{opacity:1}50%{opacity:.4}}
+.status-text{color:var(--text2)}
+.status-text.active{color:var(--text)}
+.tools-btn{display:flex;align-items:center;gap:5px;padding:0 14px;height:100%;font-family:var(--mono);font-size:11px;color:var(--accent);background:none;border:none;cursor:pointer;transition:color .15s,background .15s;margin-left:auto}
+.tools-btn:hover{color:#60a5fa;background:var(--accent-gl)}
+
+/* tools panel */
+.tools-panel{background:var(--bg2);border-bottom:1px solid var(--border);padding:12px 16px;flex-shrink:0;max-height:160px;overflow-y:auto}
+.tools-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:4px}
+.tool-row{display:flex;align-items:baseline;gap:8px;padding:4px 8px;border-radius:4px;transition:background .1s}
+.tool-row:hover{background:var(--bg3)}
+.tool-tag{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--teal);flex-shrink:0;min-width:80px}
+.tool-info{font-size:11px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* chat */
+.chat-area{flex:1;overflow-y:auto;padding:20px 16px;min-height:0;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:32px 32px;background-color:var(--bg)}
+.chat-wrap{max-width:900px;margin:0 auto}
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:calc(100vh - 300px);gap:12px;color:var(--text3)}
+.empty-glyph{width:56px;height:56px;border-radius:12px;background:var(--bg2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:24px;opacity:.5}
+.empty-title{font-family:var(--mono);font-size:13px;color:var(--text2)}
+.empty-hint{font-size:12px;color:var(--text3)}
+
+/* messages */
+.msg{margin-bottom:16px;animation:msgIn .2s ease}
+@keyframes msgIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.msg-user{display:flex;justify-content:flex-end;align-items:flex-end;gap:8px}
+.bubble-user{background:var(--accent);color:#fff;font-size:13px;line-height:1.6;white-space:pre-wrap;word-break:break-word;padding:10px 14px;border-radius:12px 12px 3px 12px;max-width:min(520px,80vw)}
+.msg-avatar{width:28px;height:28px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;background:var(--bg3);border:1px solid var(--border)}
+.msg-ai{display:flex;align-items:flex-start;gap:10px}
+.bubble-ai{background:var(--bg2);border:1px solid var(--border);color:var(--text);font-size:13px;line-height:1.7;white-space:pre-wrap;word-break:break-word;padding:12px 16px;border-radius:3px 12px 12px 12px;max-width:min(700px,90vw);flex:1}
+.msg-tool{display:flex;align-items:flex-start;gap:10px}
+.bubble-tool{background:var(--bg2);border:1px solid var(--border);border-radius:8px;overflow:hidden;max-width:min(820px,95vw);flex:1}
+.tool-header{display:flex;align-items:center;gap:8px;padding:7px 12px;background:var(--bg3);border-bottom:1px solid var(--border)}
+.tool-dots{display:flex;gap:4px}
+.tool-dot{width:8px;height:8px;border-radius:50%}
+.tool-dot.r{background:#ef4444}
+.tool-dot.y{background:#f59e0b}
+.tool-dot.g{background:#22c55e}
+.tool-cmd{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--teal);margin-left:2px}
+.tool-label{font-family:var(--mono);font-size:10px;color:var(--text3)}
+.tool-fmt-badge{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--text3);background:var(--bg4);padding:1px 6px;border-radius:3px;border:1px solid var(--border)}
+.tool-body{padding:12px 14px;font-family:var(--mono);font-size:12px;color:#a3e6c5;line-height:1.6;white-space:pre-wrap;overflow-x:auto;max-height:500px;overflow-y:auto}
+.msg-sys{display:flex;justify-content:center;margin:8px 0}
+.bubble-sys{font-family:var(--mono);font-size:11px;color:var(--text3);background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:3px 12px}
+.bubble-sys.ok{color:var(--green);border-color:rgba(34,197,94,.3);background:var(--green-gl)}
+.bubble-sys.warn{color:var(--amber);border-color:rgba(245,158,11,.3);background:var(--amber-gl)}
+.msg-err{display:flex;justify-content:center;margin:8px 0}
+.bubble-err{font-family:var(--mono);font-size:11px;color:var(--red);background:var(--red-gl);border:1px solid rgba(239,68,68,.3);border-radius:8px;padding:6px 14px;max-width:600px;text-align:center}
+.msg-time{font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:4px;display:block}
+.msg-time.right{text-align:right}
+
+/* thinking / streaming */
+.thinking-row{display:flex;align-items:flex-start;gap:10px;margin-bottom:16px;animation:msgIn .2s ease}
+.thinking-bubble{background:var(--bg2);border:1px solid var(--border);border-radius:3px 12px 12px 12px;padding:10px 14px;display:flex;align-items:center;gap:10px;color:var(--text3);font-family:var(--mono);font-size:12px}
+.think-dots{display:flex;gap:4px}
+.think-dot{width:6px;height:6px;border-radius:50%;background:var(--text3);animation:tDot 1.2s infinite}
+.think-dot:nth-child(2){animation-delay:.2s}
+.think-dot:nth-child(3){animation-delay:.4s}
+@keyframes tDot{0%,60%,100%{opacity:.2;transform:scale(.8)}30%{opacity:1;transform:scale(1)}}
+.streaming-row{display:flex;align-items:flex-start;gap:10px;margin-bottom:16px}
+.streaming-bubble{background:var(--bg2);border:1px solid var(--accent);box-shadow:0 0 0 1px var(--accent-gl);color:var(--text);font-size:13px;line-height:1.7;white-space:pre-wrap;word-break:break-word;padding:12px 16px;border-radius:3px 12px 12px 12px;max-width:min(700px,90vw);flex:1}
+.cursor{display:inline-block;width:2px;height:14px;background:var(--accent);border-radius:1px;margin-left:2px;vertical-align:text-bottom;animation:blink .9s infinite}
+@keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+
+/* confirm */
+.confirm-bar{background:var(--bg2);border-top:1px solid var(--amber);box-shadow:0 -1px 0 var(--amber-gl);padding:10px 16px;flex-shrink:0;animation:slideUp .2s ease}
+@keyframes slideUp{from{transform:translateY(8px);opacity:0}to{transform:none;opacity:1}}
+.confirm-inner{max-width:900px;margin:0 auto;display:flex;align-items:flex-start;gap:12px}
+.confirm-icon{width:28px;height:28px;border-radius:6px;background:var(--amber-gl);border:1px solid rgba(245,158,11,.3);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;margin-top:1px}
+.confirm-body{flex:1;min-width:0}
+.confirm-label{font-family:var(--mono);font-size:10px;color:var(--amber);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.confirm-text{font-family:var(--mono);font-size:12px;color:var(--text);white-space:pre-wrap;word-break:break-all;line-height:1.5}
+.confirm-btns{display:flex;gap:6px;flex-shrink:0;align-self:center}
+
+/* input */
+.input-area{background:var(--bg2);border-top:1px solid var(--border);padding:12px 16px;flex-shrink:0}
+.input-inner{max-width:900px;margin:0 auto;display:flex;gap:8px}
+.chat-input{flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--text);font-family:var(--sans);font-size:13px;padding:9px 14px;border-radius:8px;outline:none;transition:border-color .15s,box-shadow .15s;min-width:0}
+.chat-input:focus{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-gl)}
+.chat-input:disabled{opacity:.4;cursor:not-allowed}
+.chat-input::placeholder{color:var(--text3)}
+.send-btn{background:var(--accent);color:#fff;font-family:var(--mono);font-size:12px;font-weight:500;padding:9px 20px;border-radius:8px;border:none;cursor:pointer;transition:background .15s,opacity .15s;flex-shrink:0;display:flex;align-items:center;gap:6px}
+.send-btn:not(:disabled):hover{background:var(--accent2)}
+.send-btn:disabled{opacity:.3;cursor:not-allowed}
+.input-footer{max-width:900px;margin:6px auto 0;display:flex;align-items:center;justify-content:space-between}
+.input-hint{font-family:var(--mono);font-size:10px;color:var(--text3)}
+
+/* spinner */
+.spin{width:12px;height:12px;border-radius:50%;border:2px solid var(--border2);border-top-color:var(--accent);animation:spin .7s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="topbar">
+    <div class="topbar-brand">
+      <div class="brand-icon">&#9889;</div>
+      <span class="brand-name">ARTHAS</span>
+      <span class="brand-ver">AI Inspector</span>
+    </div>
+    <div class="topbar-config">
+      <span class="cfg-label">WS</span>
+      <input id="wsUrl" class="cfg-input wide" value="ws://localhost:8080/ws/inspector" spellcheck="false">
+      <div class="cfg-sep"></div>
+      <span class="cfg-label">Host</span>
+      <input id="arthasHost" class="cfg-input mid" value="127.0.0.1" spellcheck="false">
+      <span class="cfg-label">Port</span>
+      <input id="arthasPort" class="cfg-input sm" value="8563" spellcheck="false">
+      <button id="connectBtn" class="btn btn-connect">&#9679; 连接</button>
+      <button id="resetBtn" class="btn btn-ghost hidden">&#8635; 重置会话</button>
+    </div>
+  </div>
+
+  <div class="statusbar">
+    <div class="status-seg">
+      <span id="wsLed" class="status-led"></span>
+      <span id="wsText" class="status-text">WebSocket</span>
+    </div>
+    <div class="status-seg">
+      <span id="arthasLed" class="status-led"></span>
+      <span id="arthasText" class="status-text">Arthas</span>
+    </div>
+    <button id="toolsBtn" class="tools-btn hidden">
+      &#9783; <span id="toolsCount">0</span> 个工具 <span id="toolsArrow">&#9662;</span>
+    </button>
+  </div>
+
+  <div id="toolsPanel" class="tools-panel hidden">
+    <div id="toolsGrid" class="tools-grid"></div>
+  </div>
+
+  <div class="chat-area" id="chatArea">
+    <div class="chat-wrap">
+      <div id="emptyState" class="empty-state">
+        <div class="empty-glyph">&#9881;</div>
+        <p class="empty-title">连接 Arthas 后开始诊断</p>
+        <p class="empty-hint">例如：监控 com.example.OrderService.createOrder 的入参和耗时</p>
+      </div>
+      <div id="msgsEl"></div>
+      <div id="thinkingRow" class="thinking-row hidden">
+        <div class="msg-avatar">&#129302;</div>
+        <div class="thinking-bubble">
+          <div class="think-dots">
+            <div class="think-dot"></div>
+            <div class="think-dot"></div>
+            <div class="think-dot"></div>
+          </div>
+          <span>AI 正在分析...</span>
+        </div>
+      </div>
+      <div id="streamRow" class="streaming-row hidden">
+        <div class="msg-avatar">&#129302;</div>
+        <div class="streaming-bubble" id="streamContent"></div>
+      </div>
+      <div id="chatEnd"></div>
+    </div>
+  </div>
+
+  <div id="confirmBar" class="confirm-bar hidden">
+    <div class="confirm-inner">
+      <div class="confirm-icon">&#9888;</div>
+      <div class="confirm-body">
+        <div class="confirm-label">需要确认 &middot; Tool Call</div>
+        <div id="confirmText" class="confirm-text"></div>
+      </div>
+      <div class="confirm-btns">
+        <button id="confirmBtn" class="btn btn-confirm">&#10003; 执行</button>
+        <button id="cancelBtn"  class="btn btn-skip">跳过</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="input-area">
+    <div class="input-inner">
+      <input id="chatInput" class="chat-input" placeholder="请先连接 Arthas..." disabled spellcheck="false">
+      <button id="sendBtn" class="send-btn" disabled>&#10148; 发送</button>
+    </div>
+    <div class="input-footer">
+      <span class="input-hint">Enter 发送 &middot; Shift+Enter 换行 &middot; 工具调用前会请求确认</span>
+    </div>
+  </div>
+
+</div>
+
+<script>
+var MSG = { USER:'user', AI:'ai', TOOL:'tool', SYS:'sys', ERR:'err' };
+
+var S = {
+  wsUrl: 'ws://localhost:8080/ws/inspector',
+  arthasHost: '127.0.0.1',
+  arthasPort: '8563',
+  wsConnected: false,
+  arthasConnected: false,
+  connecting: false,
+  tools: [],
+  showTools: false,
+  input: '',
+  isThinking: false,
+  isStreaming: false,
+  buf: '',
+  pendingConfirm: null,
+  ws: null,
+  aiContentThisRound: false,
+  msgCount: 0
+};
+
+function $$(id){ return document.getElementById(id); }
+var el = {
+  wsUrl:        $$('wsUrl'),
+  arthasHost:   $$('arthasHost'),
+  arthasPort:   $$('arthasPort'),
+  connectBtn:   $$('connectBtn'),
+  resetBtn:     $$('resetBtn'),
+  wsLed:        $$('wsLed'),
+  wsText:       $$('wsText'),
+  arthasLed:    $$('arthasLed'),
+  arthasText:   $$('arthasText'),
+  toolsBtn:     $$('toolsBtn'),
+  toolsCount:   $$('toolsCount'),
+  toolsArrow:   $$('toolsArrow'),
+  toolsPanel:   $$('toolsPanel'),
+  toolsGrid:    $$('toolsGrid'),
+  emptyState:   $$('emptyState'),
+  msgs:         $$('msgsEl'),
+  thinkingRow:  $$('thinkingRow'),
+  streamRow:    $$('streamRow'),
+  streamContent:$$('streamContent'),
+  chatEnd:      $$('chatEnd'),
+  confirmBar:   $$('confirmBar'),
+  confirmText:  $$('confirmText'),
+  confirmBtn:   $$('confirmBtn'),
+  cancelBtn:    $$('cancelBtn'),
+  chatInput:    $$('chatInput'),
+  sendBtn:      $$('sendBtn')
+};
+
+function esc(s){
+  return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : '';
+}
+function ts(){
+  return new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+function scrollEnd(){
+  requestAnimationFrame(function(){ el.chatEnd.scrollIntoView({behavior:'smooth',block:'nearest'}); });
+}
+
+function fmtResult(raw){
+  if(!raw) return {isJson:false, html:''};
+  var unesc = raw.replace(/\\r\\n/g,'\n').replace(/\\n/g,'\n').replace(/\\t/g,'  ');
+  var trimmed = unesc.trim();
+  if(trimmed[0]==='{' || trimmed[0]==='['){
+    try{ return {isJson:true, html:esc(JSON.stringify(JSON.parse(trimmed),null,2))}; }
+    catch(e1){
+      var lines = trimmed.split('\n');
+      var expanded = false;
+      var out = lines.map(function(l){
+        var t = l.trim();
+        if(!t) return '';
+        try{ expanded=true; return JSON.stringify(JSON.parse(t),null,2); }
+        catch(e2){ return l; }
+      }).join('\n');
+      return {isJson:expanded, html:esc(out)};
+    }
+  }
+  return {isJson:false, html:esc(unesc)};
+}
+
+function addMsg(type, content, extra){
+  extra = extra || {};
+  var time = ts();
+  var wrap = document.createElement('div');
+  wrap.className = 'msg';
+  var html = '';
+
+  if(type === MSG.USER){
+    html = '<div class="msg-user">' +
+      '<div style="display:flex;flex-direction:column;align-items:flex-end">' +
+        '<div class="bubble-user">' + esc(content) + '</div>' +
+        '<span class="msg-time right">' + time + '</span>' +
+      '</div>' +
+      '<div class="msg-avatar">&#128100;</div>' +
+    '</div>';
+
+  } else if(type === MSG.AI){
+    html = '<div class="msg-ai">' +
+      '<div class="msg-avatar">&#129302;</div>' +
+      '<div style="display:flex;flex-direction:column;min-width:0">' +
+        '<div class="bubble-ai">' + esc(content) + '</div>' +
+        '<span class="msg-time">' + time + '</span>' +
+      '</div>' +
+    '</div>';
+
+  } else if(type === MSG.TOOL){
+    var cmd = extra.toolName || 'arthas';
+    var fmt = fmtResult(content);
+    html = '<div class="msg-tool">' +
+      '<div class="msg-avatar" style="font-size:10px;letter-spacing:-1px">CMD</div>' +
+      '<div style="display:flex;flex-direction:column;min-width:0;flex:1">' +
+        '<div class="bubble-tool">' +
+          '<div class="tool-header">' +
+            '<div class="tool-dots">' +
+              '<div class="tool-dot r"></div><div class="tool-dot y"></div><div class="tool-dot g"></div>' +
+            '</div>' +
+            '<span class="tool-cmd">' + esc(cmd) + '</span>' +
+            '<span class="tool-label">Arthas 执行结果</span>' +
+            (fmt.isJson ? '<span class="tool-fmt-badge">JSON formatted</span>' : '') +
+          '</div>' +
+          '<div class="tool-body">' + fmt.html + '</div>' +
+        '</div>' +
+        '<span class="msg-time">' + time + '</span>' +
+      '</div>' +
+    '</div>';
+
+  } else if(type === MSG.SYS){
+    var isOk   = content && (content.indexOf('\u2705') >= 0 || content.indexOf('完成') >= 0 || content.indexOf('连接') >= 0 || content.indexOf('重置') >= 0);
+    var isWarn = content && (content.indexOf('跳过') >= 0 || content.indexOf('中止') >= 0 || content.indexOf('\u26a0') >= 0);
+    var cls = isOk ? 'bubble-sys ok' : isWarn ? 'bubble-sys warn' : 'bubble-sys';
+    html = '<div class="msg-sys"><div class="' + cls + '">' + esc(content) + '</div></div>';
+
+  } else if(type === MSG.ERR){
+    html = '<div class="msg-err"><div class="bubble-err">\u26a0 ' + esc(content) + '</div></div>';
+  }
+
+  wrap.innerHTML = html;
+  el.msgs.appendChild(wrap);
+  el.emptyState.classList.add('hidden');
+  S.msgCount++;
+  scrollEnd();
+}
+
+function flushStream(){
+  if(S.buf){ addMsg(MSG.AI, S.buf); S.buf = ''; }
+  S.isStreaming = false;
+  S.isThinking  = false;
+}
+
+function sync(){
+  // connect button
+  if(S.connecting){
+    el.connectBtn.disabled = true;
+    el.connectBtn.innerHTML = '<div class="spin"></div> 连接中...';
+    el.connectBtn.className = 'btn btn-ghost';
+  } else if(S.arthasConnected){
+    el.connectBtn.disabled = false;
+    el.connectBtn.innerHTML = '\u00d7 断开';
+    el.connectBtn.className = 'btn btn-disconnect';
+  } else {
+    el.connectBtn.disabled = false;
+    el.connectBtn.innerHTML = '&#9679; 连接';
+    el.connectBtn.className = 'btn btn-connect';
+  }
+
+  el.resetBtn.classList.toggle('hidden', !S.arthasConnected);
+
+  // leds
+  el.wsLed.className   = 'status-led' + (S.wsConnected ? ' on' : S.connecting ? ' warn' : '');
+  el.wsText.className  = 'status-text' + (S.wsConnected ? ' active' : '');
+  el.arthasLed.className  = 'status-led' + (S.arthasConnected ? ' on' : '');
+  el.arthasText.className = 'status-text' + (S.arthasConnected ? ' active' : '');
+  el.arthasText.textContent = S.arthasConnected
+    ? 'Arthas \u00b7 ' + S.arthasHost + ':' + S.arthasPort
+    : 'Arthas';
+
+  // tools
+  var hasTools = S.tools.length > 0;
+  el.toolsBtn.classList.toggle('hidden', !hasTools);
+  if(hasTools){
+    el.toolsCount.textContent = S.tools.length;
+    el.toolsArrow.innerHTML = S.showTools ? '&#9652;' : '&#9662;';
+    el.toolsPanel.classList.toggle('hidden', !S.showTools);
+    if(S.showTools){
+      el.toolsGrid.innerHTML = S.tools.map(function(t){
+        return '<div class="tool-row">' +
+          '<span class="tool-tag">' + esc(t.name) + '</span>' +
+          '<span class="tool-info">' + esc(t.description) + '</span>' +
+        '</div>';
+      }).join('');
+    }
+  } else {
+    el.toolsPanel.classList.add('hidden');
+  }
+
+  // input
+  var busy = S.isThinking || !!S.pendingConfirm;
+  el.chatInput.disabled = !S.arthasConnected || busy;
+  el.chatInput.placeholder = S.arthasConnected
+    ? (busy ? '处理中...' : '输入诊断指令，如：监控 UserService.login 的入参和返回值')
+    : '请先连接 Arthas...';
+  el.sendBtn.disabled = !S.arthasConnected || !S.input.trim() || busy;
+
+  // thinking / streaming
+  var showStream = S.isStreaming && S.buf.length > 0;
+  el.thinkingRow.classList.toggle('hidden', !S.isThinking || showStream);
+  el.streamRow.classList.toggle('hidden', !showStream);
+  if(showStream){
+    el.streamContent.innerHTML = esc(S.buf) + '<span class="cursor"></span>';
+  }
+
+  // confirm
+  el.confirmBar.classList.toggle('hidden', !S.pendingConfirm);
+  if(S.pendingConfirm) el.confirmText.textContent = S.pendingConfirm;
+
+  scrollEnd();
+}
+
+/* WebSocket */
+function connectWs(){
+  if(S.ws){ try{ S.ws.close(); }catch(e){} S.ws = null; }
+  S.connecting = true; sync();
+  try {
+    var ws = new WebSocket(S.wsUrl);
+    S.ws = ws;
+    ws.onopen = function(){
+      S.wsConnected = true; sync();
+      ws.send(JSON.stringify({type:'connect',arthasHost:S.arthasHost,arthasPort:parseInt(S.arthasPort,10)||8563}));
+    };
+    ws.onclose = function(e){
+      S.wsConnected = S.arthasConnected = S.connecting = false;
+      S.tools = []; S.isThinking = S.isStreaming = false;
+      S.buf = ''; S.pendingConfirm = null; S.ws = null;
+      if(e.code !== 1000) addMsg(MSG.SYS, 'WebSocket \u5df2\u65ad\u5f00');
+      sync();
+    };
+    ws.onerror = function(){
+      addMsg(MSG.ERR, 'WebSocket \u8fde\u63a5\u5931\u8d25\uff0c\u8bf7\u68c0\u67e5\u540e\u7aef\u670d\u52a1\u662f\u5426\u542f\u52a8');
+      S.wsConnected = false; S.connecting = false; S.ws = null; sync();
+    };
+    ws.onmessage = function(e){
+      try{ onMsg(JSON.parse(e.data)); }catch(ex){ console.error('parse err',ex); }
+    };
+  } catch(e){
+    addMsg(MSG.ERR, '\u8fde\u63a5\u5931\u8d25: ' + e.message);
+    S.connecting = false; sync();
+  }
+}
+
+function wsDisconnect(){
+  if(S.ws) S.ws.send(JSON.stringify({type:'disconnect'}));
+  S.arthasConnected = false; S.tools = [];
+  S.isThinking = S.isStreaming = false;
+  S.buf = ''; S.pendingConfirm = null;
+  addMsg(MSG.SYS, '\u5df2\u65ad\u5f00 Arthas \u8fde\u63a5');
+  sync();
+}
+
+/* 消息处理 */
+function onMsg(msg){
+  switch(msg.type){
+    case 'wsConnected': break;
+    case 'connected':
+      S.arthasConnected = true; S.connecting = false;
+      S.tools = msg.tools || [];
+      addMsg(MSG.SYS, msg.message);
+      break;
+    case 'display':
+      if(msg.content && msg.content.trim()) addMsg(MSG.SYS, msg.content.trim());
+      break;
+    case 'aiStart':
+      S.isThinking = true; S.isStreaming = false;
+      S.buf = ''; S.aiContentThisRound = false;
+      break;
+    case 'aiMessage':
+      S.isThinking = false; S.aiContentThisRound = true;
+      if(msg.content && msg.content.trim()) addMsg(MSG.AI, msg.content);
+      break;
+    case 'toolResult':
+      addMsg(MSG.TOOL, msg.content || '', {toolName: msg.toolName});
+      break;
+    case 'token':
+      S.isThinking = false; S.isStreaming = true;
+      S.aiContentThisRound = true;
+      S.buf += (msg.content || '');
+      break;
+    case 'confirmRequest':
+      flushStream();
+      S.pendingConfirm = msg.question;
+      break;
+    case 'done':
+      flushStream();
+      if(!S.aiContentThisRound && msg.content && msg.content.trim()){
+        addMsg(MSG.AI, msg.content.trim());
+      }
+      S.aiContentThisRound = false;
+      addMsg(MSG.SYS, '\u2705 \u5206\u6790\u5b8c\u6210');
+      break;
+    case 'error':
+      flushStream();
+      S.isThinking = false; S.connecting = false; S.aiContentThisRound = false;
+      addMsg(MSG.ERR, msg.message || '\u672a\u77e5\u9519\u8bef');
+      break;
+    default:
+      console.warn('unknown msg type:', msg.type);
+  }
+  sync();
+}
+
+/* 操作 */
+function sendInspect(){
+  var text = S.input.trim();
+  if(!text || !S.arthasConnected || S.isThinking || S.pendingConfirm) return;
+  addMsg(MSG.USER, text);
+  S.input = ''; el.chatInput.value = '';
+  S.isThinking = true; S.isStreaming = false;
+  S.buf = ''; S.aiContentThisRound = false;
+  sync();
+  S.ws.send(JSON.stringify({type:'inspect', message:text}));
+}
+
+function respondConfirm(ok){
+  S.pendingConfirm = null;
+  if(ok) S.isThinking = true;
+  if(S.ws) S.ws.send(JSON.stringify({type:'confirm', approved:ok}));
+  sync();
+}
+
+function resetSession(){
+  flushStream();
+  S.pendingConfirm = null; S.isThinking = false; S.aiContentThisRound = false;
+  el.msgs.innerHTML = ''; S.msgCount = 0;
+  el.emptyState.classList.remove('hidden');
+  if(S.ws) S.ws.send(JSON.stringify({type:'reset'}));
+  addMsg(MSG.SYS, '\u2705 \u4f1a\u8bdd\u5df2\u91cd\u7f6e');
+  sync();
+}
+
+/* 事件 */
+el.wsUrl.addEventListener('input',      function(e){ S.wsUrl = e.target.value; });
+el.arthasHost.addEventListener('input', function(e){ S.arthasHost = e.target.value; sync(); });
+el.arthasPort.addEventListener('input', function(e){ S.arthasPort = e.target.value; sync(); });
+el.connectBtn.addEventListener('click', function(){
+  if(S.arthasConnected) wsDisconnect(); else connectWs();
+});
+el.resetBtn.addEventListener('click', resetSession);
+el.toolsBtn.addEventListener('click', function(){ S.showTools = !S.showTools; sync(); });
+el.chatInput.addEventListener('input', function(e){ S.input = e.target.value; sync(); });
+el.chatInput.addEventListener('keydown', function(e){
+  if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendInspect(); }
+});
+el.sendBtn.addEventListener('click', sendInspect);
+el.confirmBtn.addEventListener('click', function(){ respondConfirm(true); });
+el.cancelBtn.addEventListener('click',  function(){ respondConfirm(false); });
+
+sync();
+</script>
+</body>
+</html>

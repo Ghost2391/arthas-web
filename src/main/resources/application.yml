@@ -1,0 +1,50 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: arthas-web
+  datasource:
+    url: jdbc:h2:file:./data/arthasweb;DB_CLOSE_ON_EXIT=FALSE;AUTO_RECONNECT=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+
+# LLM configuration (OpenAI compatible, e.g. OpenAI / 通义千问 / DeepSeek / Ollama)
+llm:
+  # API base url, must end with the OpenAI-compatible path prefix (no /chat/completions)
+  base-url: https://api.deepseek.com/v1
+  api-key: 
+  model: deepseek-v4-flash
+  temperature: 0.2
+  # max seconds to wait for a single arthas command to finish
+  command-timeout: 25
+
+arthas:
+  # the websocket path of the embedded tunnel server (must match remote --tunnel-server)
+  tunnel-path: /ws
+  # idle seconds before sending a ping to keep the tunnel alive
+  idle-seconds: 30
+  # arthas 版本号，用于离线镜像。先用 docker/download-arthas-offline.sh 下载发行包后设置此值
+  # 也可保持空，由系统从 static/arthas/version.txt 读取
+  version: 4.3.1
+  # 外部发行包目录，用于无需重新打包即可更新 arthas 的场景。
+  # 如果设置了此路径，ArthasMirrorController 会优先从此目录查找发行包。
+  external-dist-dir:
+  # telnet port used by ArthasCommandExecutor to send commands to local agent
+  # must match the --telnet-port used in the attach command (default 3658)
+  telnet-port: 3658
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

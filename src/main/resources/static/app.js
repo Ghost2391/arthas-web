@@ -1,0 +1,383 @@
+const api = {
+    list: () => fetch('/api/servers').then(r => r.json()),
+    add: (s) => fetch('/api/servers', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(s)}).then(r=>r.json()),
+    update: (id,s) => fetch('/api/servers/'+id, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(s)}).then(r=>r.json()),
+    del: (id) => fetch('/api/servers/'+id, {method:'DELETE'}).then(r=>r.ok),
+    attach: (id, pid) => fetch('/api/servers/'+id+'/attach-command' + (pid ? '?pid='+encodeURIComponent(pid) : '')).then(r=>r.json()),
+};
+
+let servers = [];
+let current = null;
+let editingServerId = null;
+let chatWs = null;
+let chatConnected = false;
+
+function el(id){ return document.getElementById(id); }
+
+async function refresh() {
+    servers = await api.list();
+    const selectedId = current ? current.id : null;
+    if (selectedId) current = servers.find(s => s.id === selectedId) || null;
+    renderList();
+}
+
+function renderList() {
+    const search = el('serverSearch').value.toLowerCase();
+    const ul = el('serverList');
+    ul.innerHTML = '';
+    servers.filter(s => {
+        if (!search) return true;
+        return (s.name||'').toLowerCase().includes(search) ||
+               (s.ip||'').toLowerCase().includes(search) ||
+               (s.agentId||'').toLowerCase().includes(search);
+    }).forEach(s => {
+        const li = document.createElement('li');
+        li.className = (current && current.id === s.id) ? 'active' : '';
+        li.innerHTML = `<div class="server-name"><span class="dot ${s.online?'online':''}"></span>${esc(s.name||s.ip)}</div>
+                        <div class="server-ip">${esc(s.ip||'')} · ${esc(s.agentId)}</div>`;
+        li.onclick = () => selectServer(s.id);
+        ul.appendChild(li);
+    });
+}
+
+function esc(t){ return (t||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+function selectServer(id) {
+    current = servers.find(s => s.id === id);
+    if (!current) return;
+    el('empty').classList.add('hidden');
+    el('panel').classList.remove('hidden');
+    el('panelName').textContent = current.name || current.ip;
+    el('panelIp').textContent = ' ' + (current.ip||'');
+    el('panelStatus').className = 'dot ' + (current.online ? 'online' : '');
+    el('agentIdText').textContent = current.agentId;
+    loadAttach();
+    switchTab('chat');
+    renderList();
+}
+
+async function loadAttach() {
+    try {
+        const pid = el('pidInput').value.trim();
+        const r = await api.attach(current.id, pid);
+        el('attachCmd').textContent = r.command || '';
+    } catch(e) { el('attachCmd').textContent = '加载失败'; }
+}
+
+function switchTab(name) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+    document.querySelectorAll('.tabpane').forEach(p => p.classList.remove('active'));
+    el(name + 'Tab').classList.add('active');
+    if (name === 'chat') openChat();
+}
+
+/* ---------- Theme Toggle ---------- */
+function toggleTheme() {
+    const html = document.documentElement;
+    const isDark = html.getAttribute('data-theme') === 'dark';
+    html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+    el('themeToggle').textContent = isDark ? '🌙' : '☀️';
+    localStorage.setItem('theme', isDark ? 'light' : 'dark');
+}
+(function initTheme() {
+    const saved = localStorage.getItem('theme') || 'light';
+    document.documentElement.setAttribute('data-theme', saved);
+    el('themeToggle').textContent = saved === 'dark' ? '☀️' : '🌙';
+})();
+
+/* ---------- Copy Text (works on http too) ---------- */
+function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+    } else {
+        fallbackCopy(text);
+    }
+}
+function fallbackCopy(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } catch(e) {}
+    document.body.removeChild(ta);
+}
+
+/* ---------- Chat ---------- */
+function openChat() {
+    if (chatWs) { try { chatWs.close(); } catch(e){} chatWs = null; }
+    hideThinkingIndicator();
+    if (!current) return;
+    const proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
+    const url = proto + location.host + '/ws/chat/' + encodeURIComponent(current.id);
+    chatWs = new WebSocket(url);
+    chatWs.onopen = () => { chatConnected = true; };
+    chatWs.onclose = () => { chatConnected = false; };
+    chatWs.onmessage = (ev) => {
+        try {
+            const m = JSON.parse(ev.data);
+            addChat(m.type, m.text);
+        } catch(e) { addChat('system', ev.data); }
+    };
+}
+
+function showThinkingIndicator(text) {
+    let div = document.getElementById('thinkingIndicator');
+    if (!div) {
+        div = document.createElement('div');
+        div.id = 'thinkingIndicator';
+        div.className = 'msg status';
+        div.innerHTML = '<div class="bubble">' + text + '</div>';
+        el('chatLog').appendChild(div);
+    } else {
+        div.querySelector('.bubble').textContent = text;
+    }
+    el('chatLog').scrollTop = el('chatLog').scrollHeight;
+}
+
+function hideThinkingIndicator() {
+    const div = document.getElementById('thinkingIndicator');
+    if (div) div.remove();
+}
+
+function addChat(type, text, skipTime) {
+    if (type === 'assistant' || type === 'error') {
+        hideThinkingIndicator();
+    }
+    if (!el('thinkingToggle').checked) {
+        if (type === 'status' || type === 'command' || type === 'result') {
+            showThinkingIndicator('执行中...');
+            return;
+        }
+        if (type !== 'user' && type !== 'assistant' && type !== 'system' && type !== 'error') return;
+    }
+    const log = el('chatLog');
+    const div = document.createElement('div');
+    div.className = 'msg ' + type;
+    const b = document.createElement('div');
+    b.className = 'bubble';
+    if (type === 'assistant') {
+        try {
+            b.innerHTML = marked.parse(text, {breaks: true, gfm: true});
+        } catch(e) {
+            b.textContent = text;
+        }
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'copy-btn';
+        copyBtn.textContent = '📋';
+        copyBtn.title = '复制';
+        copyBtn.onclick = (e) => {
+            e.stopPropagation();
+            copyText(text);
+            copyBtn.textContent = '✓';
+            copyBtn.classList.add('copied');
+            setTimeout(() => { copyBtn.textContent = '📋'; copyBtn.classList.remove('copied'); }, 1500);
+        };
+        b.appendChild(copyBtn);
+    } else {
+        b.textContent = text;
+    }
+    div.appendChild(b);
+    if (!skipTime) {
+        const t = document.createElement('div');
+        t.className = 'time';
+        t.textContent = new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'});
+        div.appendChild(t);
+    }
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+}
+
+function sendChat() {
+    const ta = el('chatText');
+    const text = ta.value.trim();
+    if (!text || !chatWs || chatWs.readyState !== 1) return;
+    addChat('user', text);
+    const maxRounds = parseInt(el('maxRoundsInput').value) || 5;
+    const model = el('modelSelect').value;
+    const thinking = el('thinkingToggle').checked;
+    chatWs.send(JSON.stringify({text: text, maxRounds: maxRounds, model: model, thinking: thinking}));
+    ta.value = '';
+}
+
+/* ---------- Export Chat ---------- */
+function exportChat() {
+    const bubbles = el('chatLog').querySelectorAll('.msg');
+    if (bubbles.length === 0) return;
+    let md = '# Arthas 诊断对话\n\n';
+    md += '**服务器**: ' + (current ? (current.name || current.ip) : '') + '\n';
+    md += '**agentId**: ' + (current ? current.agentId : '') + '\n';
+    md += '**时间**: ' + new Date().toLocaleString() + '\n\n---\n\n';
+    bubbles.forEach(b => {
+        const type = [...b.classList].find(c => c !== 'msg');
+        const text = b.querySelector('.bubble')?.textContent || '';
+        if (type === 'user') md += '### 🧑 你\n\n' + text + '\n\n';
+        else if (type === 'assistant') md += '### 🤖 AI\n\n' + text + '\n\n';
+        else md += '> ' + text.replace(/\n/g, '\n> ') + '\n\n';
+    });
+    const blob = new Blob([md], {type:'text/markdown'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'arthas-chat-' + new Date().toISOString().slice(0,10) + '.md';
+    a.click();
+}
+
+/* ---------- Modal ---------- */
+function openModal(server) {
+    if (server) {
+        el('modalTitle').textContent = '编辑服务器';
+        el('f_name').value = server.name || '';
+        el('f_ip').value = server.ip || '';
+        el('f_agent').value = server.agentId || '';
+        el('f_note').value = server.note || '';
+        editingServerId = server.id;
+    } else {
+        el('modalTitle').textContent = '添加服务器';
+        el('f_name').value = '';
+        el('f_ip').value = '';
+        el('f_agent').value = '';
+        el('f_note').value = '';
+        editingServerId = null;
+    }
+    el('modal').classList.remove('hidden');
+}
+function closeModal() { el('modal').classList.add('hidden'); }
+
+async function saveModal() {
+    const s = { name: el('f_name').value.trim(), ip: el('f_ip').value.trim(),
+                agentId: el('f_agent').value.trim(), note: el('f_note').value.trim() };
+    if (!s.name && !s.ip) { alert('请填写名称或 IP'); return; }
+    if (editingServerId) {
+        await api.update(editingServerId, s);
+    } else {
+        await api.add(s);
+    }
+    closeModal();
+    await refresh();
+}
+
+/* ---------- Quick Tools & Flame ---------- */
+async function execQuickTool(cmd) {
+    if (!current || !current.online) {
+        addChat('system', '⚠ agent 未连接，无法执行工具。');
+        return;
+    }
+    addChat('system', '▶ ' + cmd);
+    try {
+        const body = {
+            jsonrpc: '2.0', id: Date.now(), method: 'tools/call',
+            params: {
+                name: 'execute_arthas_command',
+                arguments: { target: current.agentId, command: cmd }
+            }
+        };
+        const r = await fetch('/mcp', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+        const j = await r.json();
+        const text = j.result?.content?.text || j.result?.content?.[0]?.text || JSON.stringify(j);
+        addChatDirect('result', text);
+    } catch(e) {
+        addChat('error', '工具执行失败: ' + e.message);
+    }
+}
+
+function addChatDirect(type, text) {
+    hideThinkingIndicator();
+    const log = el('chatLog');
+    const div = document.createElement('div');
+    div.className = 'msg ' + type;
+    const b = document.createElement('div');
+    b.className = 'bubble';
+    b.textContent = text;
+    div.appendChild(b);
+    const t = document.createElement('div');
+    t.className = 'time';
+    t.textContent = new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'});
+    div.appendChild(t);
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+}
+
+let flameRunning = false;
+async function toggleFlameGraph() {
+    if (!current || !current.online) {
+        addChat('system', '⚠ agent 未连接。');
+        return;
+    }
+    if (!flameRunning) {
+        flameRunning = true;
+        el('flameGraphBtn').textContent = '⏳';
+        el('flameGraphBtn').disabled = true;
+        try {
+            const exec = (cmd) => fetch('/mcp', {method:'POST',headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({jsonrpc:'2.0',id:Date.now(),method:'tools/call',
+                    params:{name:'execute_arthas_command',arguments:{target:current.agentId,command:cmd}}})
+            }).then(r => r.json());
+            const startResp = await exec('profiler start');
+            const startText = startResp.result?.content?.text || '';
+            if (startText.includes('Current OS do not support') || startText.includes('Only support Linux')) {
+                addChat('error', '❌ AsyncProfiler 不支持 Windows，火焰图仅支持 Linux/Mac 环境。');
+                return;
+            }
+            if (startText.includes('already started')) {
+                await exec('profiler stop');
+                await new Promise(r => setTimeout(r, 1000));
+                await exec('profiler start');
+            }
+            addChat('system', '⏱ 采集 30 秒中...');
+            await new Promise(r => setTimeout(r, 30000));
+            const j = await exec('profiler stop --format html');
+            let text = j.result?.content?.text || j.result?.content?.[0]?.text || '无输出';
+            text = text.replace('... (output truncated)', '');
+            const htmlStart = text.indexOf('<!DOCTYPE html>');
+            const hasHtml = htmlStart >= 0;
+            const html = hasHtml ? text.substring(htmlStart) : text;
+            if (hasHtml && html.length > 50) {
+                const blob = new Blob([html], {type:'text/html'});
+                const url = URL.createObjectURL(blob);
+                const log = el('chatLog');
+                const div = document.createElement('div');
+                div.className = 'msg result';
+                div.innerHTML = '<div class="bubble" style="padding:0;height:500px;"><iframe src="' + url + '" style="width:100%;height:100%;border:none;" sandbox="allow-scripts"></iframe></div>';
+                log.appendChild(div);
+                log.scrollTop = log.scrollHeight;
+            } else {
+                addChat('result', html.substring(0, 4000));
+            }
+        } catch(e) {
+            addChat('error', '火焰图失败: ' + e.message);
+        } finally {
+            flameRunning = false;
+            el('flameGraphBtn').textContent = '🔥';
+            el('flameGraphBtn').disabled = false;
+        }
+    }
+}
+
+/* ---------- events ---------- */
+el('addBtn').onclick = () => openModal(null);
+el('editBtn').onclick = () => { if (current) openModal(current); };
+el('modalCancel').onclick = closeModal;
+el('modalSave').onclick = saveModal;
+el('themeToggle').onclick = toggleTheme;
+el('exportChatBtn').onclick = exportChat;
+el('serverSearch').addEventListener('input', () => renderList());
+el('deleteBtn').onclick = async () => {
+    if (!current) return;
+    if (!confirm('确认删除服务器 ' + (current.name||current.ip) + ' ?')) return;
+    await api.del(current.id);
+    current = null;
+    el('panel').classList.add('hidden');
+    el('empty').classList.remove('hidden');
+    await refresh();
+};
+el('chatSend').onclick = sendChat;
+el('clearChatBtn').onclick = () => { if (chatWs && chatWs.readyState === 1) { chatWs.send('/clear'); el('chatLog').innerHTML = ''; } };
+el('chatText').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } });
+el('copyCmd').onclick = () => { copyText(el('attachCmd').textContent); el('copyCmd').textContent='✅ 已复制'; setTimeout(()=>el('copyCmd').textContent='📋 复制命令',1500); };
+el('pidInput').addEventListener('input', loadAttach);
+el('flameGraphBtn').onclick = toggleFlameGraph;
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => switchTab(t.dataset.tab));
+document.querySelectorAll('.tool-btn:not(.flame-btn)').forEach(b => {
+    b.onclick = () => execQuickTool(b.dataset.tool);
+});
+
+refresh();
+setInterval(refresh, 5000);
