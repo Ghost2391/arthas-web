@@ -161,6 +161,16 @@ public class TunnelWebSocketHandler extends TextWebSocketHandler {
 
     private void forward(WebSocketSession from, org.springframework.web.socket.WebSocketMessage<?> message) throws Exception {
         WebSocketSession peer = (WebSocketSession) from.getAttributes().get("peer");
+        logger.info("forward: from={} peer={} peerOpen={} type={} payloadLen={}",
+                from.getId(),
+                peer != null ? peer.getId() : null,
+                peer != null && peer.isOpen(),
+                message.getClass().getSimpleName(),
+                message instanceof org.springframework.web.socket.TextMessage
+                        ? ((org.springframework.web.socket.TextMessage) message).getPayload().length()
+                        : message instanceof org.springframework.web.socket.BinaryMessage
+                                ? ((org.springframework.web.socket.BinaryMessage) message).getPayloadLength()
+                                : -1);
         if (peer != null && peer.isOpen()) {
             peer.sendMessage(message);
         }
@@ -168,7 +178,10 @@ public class TunnelWebSocketHandler extends TextWebSocketHandler {
 
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
-        if (Boolean.TRUE.equals(session.getAttributes().get("linked"))) {
+        boolean linked = Boolean.TRUE.equals(session.getAttributes().get("linked"));
+        logger.info("handleTextMessage: session={} linked={} payloadLen={} from={}",
+                session.getId(), linked, message.getPayload().length(), session.getRemoteAddress());
+        if (linked) {
             forward(session, message);
             return;
         }
@@ -204,7 +217,10 @@ public class TunnelWebSocketHandler extends TextWebSocketHandler {
 
     @Override
     protected void handleBinaryMessage(WebSocketSession session, org.springframework.web.socket.BinaryMessage message) {
-        if (Boolean.TRUE.equals(session.getAttributes().get("linked"))) {
+        boolean linked = Boolean.TRUE.equals(session.getAttributes().get("linked"));
+        logger.info("handleBinaryMessage: session={} linked={} payloadLen={} from={}",
+                session.getId(), linked, message.getPayloadLength(), session.getRemoteAddress());
+        if (linked) {
             try {
                 forward(session, message);
             } catch (Exception e) {

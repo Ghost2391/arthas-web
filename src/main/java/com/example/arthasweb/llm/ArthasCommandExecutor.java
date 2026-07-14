@@ -162,8 +162,9 @@ public class ArthasCommandExecutor {
                         @Override
                         public CompletionStage<?> onText(WebSocket ws, CharSequence data, boolean last) {
                             String text = data.toString();
-                            logger.debug("tunnel ws text for agent={}: {}",
-                                    agentId, text.length() > 200 ? text.substring(0, 200) + "..." : text);
+                            logger.info("tunnel ws text for agent={}: len={} data=[{}]",
+                                    agentId, text.length(),
+                                    text.length() > 300 ? text.substring(0, 300) + "..." : text);
                             appendData(ws, text);
                             return WebSocket.Listener.super.onText(ws, data, last);
                         }
@@ -173,8 +174,9 @@ public class ArthasCommandExecutor {
                             byte[] bytes = new byte[data.remaining()];
                             data.get(bytes);
                             String text = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
-                            logger.debug("tunnel ws binary for agent={}: {}",
-                                    agentId, text.length() > 200 ? text.substring(0, 200) + "..." : text);
+                            logger.info("tunnel ws binary for agent={}: len={} data=[{}]",
+                                    agentId, bytes.length,
+                                    text.length() > 300 ? text.substring(0, 300) + "..." : text);
                             appendData(ws, text);
                             return WebSocket.Listener.super.onBinary(ws, data, last);
                         }
