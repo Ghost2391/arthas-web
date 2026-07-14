@@ -216,16 +216,12 @@ public class TunnelWebSocketHandler extends TextWebSocketHandler {
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
         String agentId = (String) session.getAttributes().get("agentId");
-        String cid = (String) session.getAttributes().get("clientConnectionId");
-        boolean linked = Boolean.TRUE.equals(session.getAttributes().get("linked"));
-        logger.info("session closed: agentId={} clientConnectionId={} linked={} status={}", agentId, cid, linked, status);
         if (agentId != null) {
             agentSessions.remove(agentId);
             logger.info("agent disconnected, id={}", agentId);
         }
         WebSocketSession peer = (WebSocketSession) session.getAttributes().get("peer");
         if (peer != null && peer.isOpen()) {
-            logger.info("closing peer session: status={}", status);
             peer.close(status);
         }
     }

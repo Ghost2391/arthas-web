@@ -21,7 +21,7 @@ import com.example.arthasweb.tunnel.TunnelWebSocketHandler;
 public class ArthasCommandExecutor {
 
     private static final Logger logger = LoggerFactory.getLogger(ArthasCommandExecutor.class);
-    private static final Pattern PROMPT = Pattern.compile("\\[arthas@\\d+\\]\\$\\s*");
+    private static final Pattern PROMPT = Pattern.compile("\\[arthas@\\d+\\]\\$\\s*$");
     private static final Pattern ANSI = Pattern.compile("\u001B\\[[;\\?0-9]*[a-zA-Z]");
 
     private final ArthasProperties props;
@@ -139,60 +139,44 @@ public class ArthasCommandExecutor {
                         @Override
                         public CompletionStage<?> onText(WebSocket ws, CharSequence data, boolean last) {
                             String text = data.toString();
-                            logger.info("tunnel ws text[{}] for agent={}: [{}]", initialDone ? "data" : "banner", agentId,
-                                    text.length() > 300 ? text.substring(0, 300) + "..." : text);
+                            logger.debug("tunnel ws text[{}] for agent={}: {}", initialDone ? "data" : "banner", agentId,
+                                    text.length() > 200 ? text.substring(0, 200) + "..." : text);
 
                             if (!initialDone) {
                                 output.append(text);
                                 String cleaned = clean(output.toString());
-                                logger.info("tunnel cleaned output so far[{}]: [{}]", cleaned.length(),
-                                        cleaned.length() > 200 ? cleaned.substring(cleaned.length() - 200) : cleaned);
                                 if (PROMPT.matcher(cleaned).find()) {
                                     initialDone = true;
                                     tunnelReady.complete(null);
                                     output.setLength(0);
-                                    logger.info("tunnel initial prompt matched for agent={}", agentId);
-                                } else {
-                                    logger.info("tunnel prompt not yet matched, continuing to wait");
+                                    logger.info("tunnel initial prompt received for agent={}", agentId);
                                 }
                                 return WebSocket.Listener.super.onText(ws, data, last);
                             }
 
                             output.append(text);
                             String cleaned = clean(output.toString());
-                            logger.info("tunnel cleaned output: [{}]",
-                                    cleaned.length() > 200 ? cleaned.substring(cleaned.length() - 200) : cleaned);
                             if (PROMPT.matcher(cleaned).find()) {
                                 result.complete(cleaned);
-                                logger.info("tunnel command result completed for agent={}", agentId);
+                                logger.info("tunnel command output complete for agent={}", agentId);
                             }
                             return WebSocket.Listener.super.onText(ws, data, last);
                         }
 
                         @Override
                         public void onError(WebSocket ws, Throwable error) {
-                            logger.warn("tunnel ws error for agent={}: {} resultDone={} tunnelReadyDone={}",
-                                    agentId, error.toString(), result.isDone(), tunnelReady.isDone());
+                            logger.warn("tunnel ws error for agent={}: {}", agentId, error.toString());
                             if (!result.isDone()) {
                                 result.complete("执行出错: " + error.getMessage());
                             }
-                            if (!tunnelReady.isDone()) {
-                                tunnelReady.completeExceptionally(error);
-                            }
+                            tunnelReady.completeExceptionally(error);
                         }
 
                         @Override
                         public CompletionStage<?> onClose(WebSocket ws, int statusCode, String reason) {
                             logger.info("tunnel ws closed for agent={}: status={} reason={}", agentId, statusCode, reason);
-                            logger.info("tunnel ws close: resultDone={} tunnelReadyDone={} outputLen={} initialDone={}",
-                                    result.isDone(), tunnelReady.isDone(), output.length(), initialDone);
                             if (!result.isDone()) {
-                                String finalOutput = clean(output.toString());
-                                logger.info("tunnel ws close: completing result with [{}]",
-                                        finalOutput.length() > 200 ? finalOutput.substring(0, 200) + "..." : finalOutput);
-                                result.complete(finalOutput);
-                            } else {
-                                logger.info("tunnel ws close: result already done, value=[{}]", result.getNow("N/A"));
+                                result.complete(clean(output.toString()));
                             }
                             if (!tunnelReady.isDone()) {
                                 tunnelReady.completeExceptionally(
@@ -208,9 +192,7 @@ public class ArthasCommandExecutor {
         }
 
         try {
-            logger.info("waiting for tunnel ready, timeout={}s", timeout + 5);
             tunnelReady.get(timeout + 5, TimeUnit.SECONDS);
-            logger.info("tunnel ready complete");
         } catch (Exception e) {
             logger.warn("tunnel ready timeout for agent={}: {}", agentId, e.toString());
             try { ws.sendClose(WebSocket.NORMAL_CLOSURE, ""); } catch (Exception ex) {}
@@ -218,18 +200,10 @@ public class ArthasCommandExecutor {
         }
 
         logger.info("sending command via tunnel: {}", command);
-        try {
-            ws.sendText(command + "\r\n", true).get(5, TimeUnit.SECONDS);
-            logger.info("command sent successfully");
-        } catch (Exception e) {
-            logger.warn("command send failed for agent={}: {}", agentId, e.toString());
-            throw e;
-        }
-        logger.info("waiting for result, timeout={}s", timeout + 10);
+        ws.sendText(command + "\r\n", true);
 
         try {
             String r = result.get(timeout + 10, TimeUnit.SECONDS);
-            logger.info("tunnel result received: len={}", r != null ? r.length() : -1);
             return r != null ? r : "";
         } catch (Exception e) {
             logger.warn("tunnel result failed for agent={}: {}", agentId, e.toString());
