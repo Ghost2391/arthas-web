@@ -147,9 +147,12 @@ public class ArthasCommandExecutor {
                                 String cleaned = clean(output.toString());
                                 if (PROMPT.matcher(cleaned).find()) {
                                     initialDone = true;
+                                    // 立即发送命令，避免 tunnel 关闭后无法发送
+                                    logger.info("tunnel initial prompt received, sending command immediately: {}", command);
+                                    ws.sendText(command + "\r\n", true);
+                                    logger.info("command sent for agent={}", agentId);
                                     tunnelReady.complete(null);
                                     output.setLength(0);
-                                    logger.info("tunnel initial prompt received for agent={}", agentId);
                                 }
                                 return WebSocket.Listener.super.onText(ws, data, last);
                             }
@@ -166,17 +169,28 @@ public class ArthasCommandExecutor {
                         @Override
                         public void onError(WebSocket ws, Throwable error) {
                             logger.warn("tunnel ws error for agent={}: {}", agentId, error.toString());
-                            if (!result.isDone()) {
+                            if (!tunnelReady.isDone()) {
+                                tunnelReady.completeExceptionally(error);
+                            } else if (!result.isDone()) {
                                 result.complete("执行出错: " + error.getMessage());
                             }
-                            tunnelReady.completeExceptionally(error);
                         }
 
                         @Override
                         public CompletionStage<?> onClose(WebSocket ws, int statusCode, String reason) {
                             logger.info("tunnel ws closed for agent={}: status={} reason={}", agentId, statusCode, reason);
                             if (!result.isDone()) {
-                                result.complete(clean(output.toString()));
+                                String partial = clean(output.toString());
+                                if (tunnelReady.isDone() && initialDone && !partial.isEmpty()) {
+                                    // 命令已发送，tunnel 提前关闭但有部分输出
+                                    logger.info("tunnel closed early, returning partial output for agent={}", agentId);
+                                    result.complete(partial);
+                                } else if (!partial.isEmpty()) {
+                                    result.complete(partial);
+                                } else {
+                                    result.completeExceptionally(
+                                            new RuntimeException("connection closed before command completed: " + reason));
+                                }
                             }
                             if (!tunnelReady.isDone()) {
                                 tunnelReady.completeExceptionally(
@@ -199,17 +213,20 @@ public class ArthasCommandExecutor {
             throw e;
         }
 
-        logger.info("sending command via tunnel: {}", command);
-        ws.sendText(command + "\r\n", true);
-
         try {
             String r = result.get(timeout + 10, TimeUnit.SECONDS);
             return r != null ? r : "";
         } catch (Exception e) {
+            // 超时但有部分输出时，返回部分输出而不是抛异常
+            String partial = clean(output.toString());
+            if (!partial.isEmpty() && e instanceof java.util.concurrent.TimeoutException) {
+                logger.warn("tunnel result timeout but has partial output for agent={}, returning partial", agentId);
+                return partial;
+            }
             logger.warn("tunnel result failed for agent={}: {}", agentId, e.toString());
             throw e;
         } finally {
-            try { ws.sendClose(WebSocket.NORMAL_CLOSURE, "done"); } catch (Exception e) {}
+            try { ws.sendClose(WebSocket.NORMAL_CLOSURE, ""); } catch (Exception e) {}
         }
     }
 
