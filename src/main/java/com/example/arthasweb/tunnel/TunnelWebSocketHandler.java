@@ -172,7 +172,18 @@ public class TunnelWebSocketHandler extends TextWebSocketHandler {
                                 ? ((org.springframework.web.socket.BinaryMessage) message).getPayloadLength()
                                 : -1);
         if (peer != null && peer.isOpen()) {
-            peer.sendMessage(message);
+            if (message instanceof org.springframework.web.socket.TextMessage) {
+                String payload = ((org.springframework.web.socket.TextMessage) message).getPayload();
+                peer.sendMessage(new org.springframework.web.socket.TextMessage(payload));
+            } else if (message instanceof org.springframework.web.socket.BinaryMessage) {
+                org.springframework.web.socket.BinaryMessage bin = (org.springframework.web.socket.BinaryMessage) message;
+                java.nio.ByteBuffer payload = bin.getPayload();
+                byte[] copy = new byte[payload.remaining()];
+                payload.duplicate().get(copy);
+                peer.sendMessage(new org.springframework.web.socket.BinaryMessage(copy));
+            } else {
+                peer.sendMessage(message);
+            }
         }
     }
 
