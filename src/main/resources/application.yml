@@ -1,5 +1,5 @@
 server:
-  port: 8080
+  port: 8082
 
 spring:
   application:
@@ -27,6 +27,20 @@ llm:
   temperature: 0.2
   # max seconds to wait for a single arthas command to finish
   command-timeout: 25
+  # 前端可选模型列表，name=显示名 value=API model 名 thinking=是否开启深度思考
+  models:
+    - name: DeepSeek V4 Flash
+      value: deepseek-v4-flash
+      thinking: true
+    - name: DeepSeek V4 Pro
+      value: deepseek-v4-pro  
+      thinking: true
+    - name: DeepSeek Chat
+      value: deepseek-chat
+      thinking: false
+    - name: Qwen Plus
+      value: qwen-plus
+      thinking: false
 
 arthas:
   # the websocket path of the embedded tunnel server (must match remote --tunnel-server)
@@ -42,8 +56,6 @@ arthas:
   # telnet port used by ArthasCommandExecutor to send commands to local agent
   # must match the --telnet-port used in the attach command (default 3658)
   telnet-port: 3658
-  # HTTP port for executing commands via REST API (default 8563, use 8564 when using TcpProxy)
-  http-port: 8564
   # password for MCP authentication. When set, clients must provide 'Authorization: Bearer <password>' header.
   # Leave empty to disable authentication.
   password:

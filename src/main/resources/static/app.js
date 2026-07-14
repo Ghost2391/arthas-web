@@ -12,6 +12,38 @@ let editingServerId = null;
 let chatWs = null;
 let chatConnected = false;
 
+let modelList = [];
+let currentModel = null;
+
+async function loadModels() {
+    try {
+        const r = await fetch('/api/models');
+        modelList = await r.json();
+        const sel = el('modelSelect');
+        sel.innerHTML = '';
+        modelList.forEach((m, i) => {
+            const opt = document.createElement('option');
+            opt.value = m.value;
+            opt.textContent = m.name;
+            sel.appendChild(opt);
+            if (i === 0) currentModel = m;
+        });
+        updateThinkingState();
+    } catch(e) {
+        console.error('load models failed', e);
+    }
+}
+
+function updateThinkingState() {
+    const sel = el('modelSelect');
+    const val = sel.value;
+    const model = modelList.find(m => m.value === val);
+    el('thinkingToggle').checked = model ? model.thinking : false;
+    currentModel = model;
+}
+
+el('modelSelect').onchange = updateThinkingState;
+
 function el(id){ return document.getElementById(id); }
 
 async function refresh() {
@@ -325,11 +357,10 @@ async function toggleFlameGraph() {
             await new Promise(r => setTimeout(r, 30000));
             const j = await exec('profiler stop --format html');
             let text = j.result?.content?.text || j.result?.content?.[0]?.text || '无输出';
-            text = text.replace('... (output truncated)', '');
             const htmlStart = text.indexOf('<!DOCTYPE html>');
-            const hasHtml = htmlStart >= 0;
-            const html = hasHtml ? text.substring(htmlStart) : text;
-            if (hasHtml && html.length > 50) {
+            if (htmlStart >= 0) {
+                // 内联 HTML（tunnel 模式）
+                const html = text.substring(htmlStart);
                 const blob = new Blob([html], {type:'text/html'});
                 const url = URL.createObjectURL(blob);
                 const log = el('chatLog');
@@ -339,7 +370,33 @@ async function toggleFlameGraph() {
                 log.appendChild(div);
                 log.scrollTop = log.scrollHeight;
             } else {
-                addChat('result', html.substring(0, 4000));
+                // HTTP API 返回文件路径，尝试 cat 读取
+                const match = text.match(/文件已生成:\s*(.+)/);
+                if (match) {
+                    const filePath = match[1].trim();
+                    addChat('system', '📄 火焰图已生成: ' + filePath + '\n正在加载...');
+                    try {
+                        const catResp = await exec('cat ' + filePath);
+                        const catText = catResp.result?.content?.text || '';
+                        const catHtml = catText.indexOf('<!DOCTYPE html>') >= 0 ? catText.substring(catText.indexOf('<!DOCTYPE html>')) : '';
+                        if (catHtml.length > 100) {
+                            const blob = new Blob([catHtml], {type:'text/html'});
+                            const url = URL.createObjectURL(blob);
+                            const log = el('chatLog');
+                            const div = document.createElement('div');
+                            div.className = 'msg result';
+                            div.innerHTML = '<div class="bubble" style="padding:0;height:500px;"><iframe src="' + url + '" style="width:100%;height:100%;border:none;" sandbox="allow-scripts"></iframe></div>';
+                            log.appendChild(div);
+                            log.scrollTop = log.scrollHeight;
+                        } else {
+                            addChat('system', text);
+                        }
+                    } catch(e) {
+                        addChat('system', text);
+                    }
+                } else {
+                    addChat('system', text);
+                }
             }
         } catch(e) {
             addChat('error', '火焰图失败: ' + e.message);
@@ -381,3 +438,4 @@ document.querySelectorAll('.tool-btn:not(.flame-btn)').forEach(b => {
 
 refresh();
 setInterval(refresh, 5000);
+loadModels();
