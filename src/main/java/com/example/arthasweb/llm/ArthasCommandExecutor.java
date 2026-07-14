@@ -5,8 +5,11 @@ import java.io.OutputStreamWriter;
 import java.net.Socket;
 import java.net.URI;
 import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.net.http.WebSocket;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.TimeUnit;
@@ -39,14 +42,21 @@ public class ArthasCommandExecutor {
     }
 
     public String execute(String agentId, String command) throws Exception {
-        // 优先使用 tunnel 方式（适用于远程和本地）
         if (tunnelHandler != null && tunnelHandler.isAgentOnline(agentId)) {
+            // 对于远程 agent，优先尝试 HTTP API（端口 8563），fallback 到 tunnel
+            String remoteHost = tunnelHandler.getAgentRemoteHost(agentId);
+            if (remoteHost != null && !"127.0.0.1".equals(remoteHost) && !"localhost".equals(remoteHost)) {
+                try {
+                    return executeViaHttp(remoteHost, agentId, command);
+                } catch (Exception e) {
+                    logger.warn("http execute failed for agent={}, falling back to tunnel: {}", agentId, e.toString());
+                }
+            }
+
             try {
                 return executeViaTunnel(agentId, command);
             } catch (Exception e) {
                 logger.warn("tunnel execute failed for agent={}: {}", agentId, e.toString());
-                // 对于远程场景，tunnel 失败后不应回退到 telnet（telnet 只能连本机）
-                // 只有当明确是本地 agent 时才尝试 telnet
                 String isLocal = System.getProperty("arthas.agent." + agentId + ".local");
                 if ("true".equals(isLocal)) {
                     return executeViaTelnet(agentId, command);
@@ -54,8 +64,102 @@ public class ArthasCommandExecutor {
                 throw e;
             }
         }
-        // 如果没有 tunnel handler 或 agent 不在线，尝试 telnet（仅适用于本地）
         return executeViaTelnet(agentId, command);
+    }
+
+    private String executeViaHttp(String remoteHost, String agentId, String command) throws Exception {
+        int httpPort = props.getHttpPort() > 0 ? props.getHttpPort() : 8563;
+        int timeout = props.getIdleSeconds() > 0 ? props.getIdleSeconds() : 25;
+        String url = "http://" + remoteHost + ":" + httpPort + "/api";
+        logger.info("executing command via HTTP: url={} command={}", url, command);
+
+        String body = "{\"action\":\"exec\",\"command\":\"" + escapeJson(command) + "\"}";
+
+        HttpRequest.Builder builder = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("Content-Type", "application/json")
+                .timeout(Duration.ofSeconds(timeout + 15))
+                .POST(HttpRequest.BodyPublishers.ofString(body));
+
+        String password = props.getPassword();
+        if (password != null && !password.isEmpty()) {
+            builder.header("Authorization", "Bearer " + password);
+        }
+
+        HttpClient client = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(10))
+                .build();
+
+        HttpResponse<String> response = client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+        int status = response.statusCode();
+        String respBody = response.body();
+        logger.info("HTTP response status={} bodyLen={}", status, respBody != null ? respBody.length() : 0);
+
+        if (status >= 400) {
+            throw new RuntimeException("HTTP error " + status + ": " + respBody);
+        }
+
+        // parse arthas /api response
+        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        com.fasterxml.jackson.databind.JsonNode node = mapper.readTree(respBody);
+        String state = node.has("state") ? node.get("state").asText() : "";
+        if ("ERROR".equalsIgnoreCase(state) || "FAILED".equalsIgnoreCase(state)) {
+            String msg = node.has("message") ? node.get("message").asText() : "unknown error";
+            throw new RuntimeException("arthas command error: " + msg);
+        }
+        com.fasterxml.jackson.databind.JsonNode bodyNode = node.has("body") ? node.get("body") : null;
+        com.fasterxml.jackson.databind.JsonNode results = null;
+        if (bodyNode != null && bodyNode.has("results")) {
+            results = bodyNode.get("results");
+        } else {
+            results = node.get("results");
+        }
+
+        StringBuilder out = new StringBuilder();
+        if (results != null && results.isArray()) {
+            for (com.fasterxml.jackson.databind.JsonNode r : results) {
+                String type = r.has("type") ? r.get("type").asText() : "";
+                if (r.isTextual()) {
+                    out.append(r.asText());
+                } else if (r.has("output")) {
+                    out.append(r.get("output").asText());
+                } else if ("status".equals(type)) {
+                    continue;
+                } else if ("profiler".equals(type)) {
+                    String result = r.has("executeResult") ? r.get("executeResult").asText() : "";
+                    String outputFile = r.has("outputFile") ? r.get("outputFile").asText() : "";
+                    out.append(result.trim());
+                    if (!outputFile.isEmpty()) {
+                        out.append("\n文件已生成: ").append(outputFile);
+                    }
+                } else {
+                    out.append(mapper.writerWithDefaultPrettyPrinter().writeValueAsString(r));
+                }
+                out.append("\n");
+            }
+        } else if (results != null && results.isTextual()) {
+            out.append(results.asText());
+        } else if (results != null) {
+            out.append(mapper.writerWithDefaultPrettyPrinter().writeValueAsString(results));
+        }
+        String text = out.toString().trim();
+        logger.info("HTTP result: len={}", text.length());
+        return text.isEmpty() ? ANSI.matcher(respBody).replaceAll("") : text;
+    }
+
+    private static String escapeJson(String s) {
+        StringBuilder sb = new StringBuilder();
+        for (char c : s.toCharArray()) {
+            switch (c) {
+                case '"': sb.append("\\\""); break;
+                case '\\': sb.append("\\\\"); break;
+                case '\n': sb.append("\\n"); break;
+                case '\r': sb.append("\\r"); break;
+                case '\t': sb.append("\\t"); break;
+                default: sb.append(c);
+            }
+        }
+        return sb.toString();
     }
 
     private String executeViaTelnet(String agentId, String command) throws Exception {
@@ -143,7 +247,8 @@ public class ArthasCommandExecutor {
                                 if (PROMPT.matcher(cleaned).find()) {
                                     initialDone = true;
                                     logger.info("tunnel initial prompt received, sending command immediately: {}", command);
-                                    ws.sendText(command + "\r\n", true);
+                                    try { Thread.sleep(500); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+                                    ws.sendText(command + "\n", true);
                                     logger.info("command sent for agent={}", agentId);
                                     tunnelReady.complete(null);
                                     output.setLength(0);

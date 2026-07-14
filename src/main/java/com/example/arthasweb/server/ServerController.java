@@ -99,6 +99,8 @@ public class ServerController {
         cmd.append("else\n");
         cmd.append("  echo \"arthas already installed at $AS_SCRIPT\"\n");
         cmd.append("fi\n");
+        cmd.append("curl -sL -o /tmp/TcpProxy.class ").append(baseUrl).append("/TcpProxy.class\n");
+        cmd.append("java -cp /tmp TcpProxy 8564 127.0.0.1 8563 &\n");
         cmd.append("java -jar arthas-boot.jar")
                 .append(" --tunnel-server ").append(tunnelUrl)
                 .append(" --agent-id ").append(cfg.getAgentId())
@@ -114,6 +116,8 @@ public class ServerController {
         cmd.append("mkdir -p $HOME/.arthas/lib/$VERSION/arthas && ");
         cmd.append("unzip -o /tmp/arthas-packaging-$VERSION-bin.zip -d $HOME/.arthas/lib/$VERSION/arthas/; ");
         cmd.append("fi; ");
+        cmd.append("curl -sL -o /tmp/TcpProxy.class ").append(baseUrl).append("/TcpProxy.class && ");
+        cmd.append("java -cp /tmp TcpProxy 8564 127.0.0.1 8563 & ");
         cmd.append("java -jar arthas-boot.jar --tunnel-server ").append(tunnelUrl)
                 .append(" --agent-id ").append(cfg.getAgentId())
                 .append(" --attach-only ").append(pidVal)
@@ -130,6 +134,8 @@ public class ServerController {
         cmd.append("New-Item -ItemType Directory -Path $dir -Force; ");
         cmd.append("Expand-Archive -Path $zip -DestinationPath $dir -Force; ");
         cmd.append("}; ");
+        cmd.append("Invoke-WebRequest -Uri ").append(baseUrl).append("/TcpProxy.class -OutFile \"$env:TEMP\\TcpProxy.class\"; ");
+        cmd.append("Start-Process -NoNewWindow java -ArgumentList '-cp',$env:TEMP,'TcpProxy','8564','127.0.0.1','8563'; ");
         cmd.append("java -jar arthas-boot.jar --tunnel-server ").append(tunnelUrl)
                 .append(" --agent-id ").append(cfg.getAgentId())
                 .append(" --attach-only ").append(pidVal)

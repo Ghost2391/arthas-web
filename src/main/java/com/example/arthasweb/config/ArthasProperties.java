@@ -13,6 +13,8 @@ public class ArthasProperties {
     private String publicHost = "";
     /** Default telnet port for agents on this machine, used by executor to run commands directly. */
     private int telnetPort = 3658;
+    /** Default HTTP port for agents, used by executor to run commands via HTTP API. */
+    private int httpPort = 8564;
     private String version = "";
     /** Password for MCP authentication. When set, clients must provide 'Authorization: Bearer <password>' header. */
     private String password = "";
@@ -68,6 +70,14 @@ public class ArthasProperties {
 
     public void setTelnetPort(int telnetPort) {
         this.telnetPort = telnetPort;
+    }
+
+    public int getHttpPort() {
+        return httpPort;
+    }
+
+    public void setHttpPort(int httpPort) {
+        this.httpPort = httpPort;
     }
 
     public String getPassword() {

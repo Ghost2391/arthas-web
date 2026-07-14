@@ -52,6 +52,15 @@ public class TunnelWebSocketHandler extends TextWebSocketHandler {
         return agentSessions.values().stream().anyMatch(WebSocketSession::isOpen);
     }
 
+    public String getAgentRemoteHost(String agentId) {
+        WebSocketSession s = agentSessions.get(agentId);
+        if (s != null && s.getRemoteAddress() != null && s.getRemoteAddress() instanceof java.net.InetSocketAddress) {
+            String host = ((java.net.InetSocketAddress) s.getRemoteAddress()).getHostString();
+            return "0:0:0:0:0:0:0:1".equals(host) ? "127.0.0.1" : host;
+        }
+        return null;
+    }
+
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
         String uri = session.getUri() == null ? "" : session.getUri().toString();

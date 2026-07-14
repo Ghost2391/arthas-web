@@ -42,6 +42,8 @@ arthas:
   # telnet port used by ArthasCommandExecutor to send commands to local agent
   # must match the --telnet-port used in the attach command (default 3658)
   telnet-port: 3658
+  # HTTP port for executing commands via REST API (default 8563, use 8564 when using TcpProxy)
+  http-port: 8564
   # password for MCP authentication. When set, clients must provide 'Authorization: Bearer <password>' header.
   # Leave empty to disable authentication.
   password:
