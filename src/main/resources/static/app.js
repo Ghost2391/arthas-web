@@ -412,6 +412,7 @@ async function toggleFlameGraph() {
 el('addBtn').onclick = () => openModal(null);
 el('editBtn').onclick = () => { if (current) openModal(current); };
 el('modalCancel').onclick = closeModal;
+el('modalCancel2').onclick = closeModal;
 el('modalSave').onclick = saveModal;
 el('themeToggle').onclick = toggleTheme;
 el('exportChatBtn').onclick = exportChat;
@@ -432,7 +433,7 @@ el('copyCmd').onclick = () => { copyText(el('attachCmd').textContent); el('copyC
 el('pidInput').addEventListener('input', loadAttach);
 el('flameGraphBtn').onclick = toggleFlameGraph;
 document.querySelectorAll('.tab').forEach(t => t.onclick = () => switchTab(t.dataset.tab));
-document.querySelectorAll('.tool-btn:not(.flame-btn)').forEach(b => {
+document.querySelectorAll('.tool-badge:not(.flame-btn)').forEach(b => {
     b.onclick = () => execQuickTool(b.dataset.tool);
 });
 
