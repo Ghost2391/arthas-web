@@ -256,6 +256,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
     white-space: pre;
     border-radius: var(--radius-md);
     border: 1px solid rgba(0, 0, 0, 0.15);
+    max-width: 100%;
     padding: 14px;
 }
 .msg.result .bubble * {
