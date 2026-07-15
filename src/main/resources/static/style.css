@@ -190,7 +190,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 .msg.command .bubble { color: #b8860b; font-family: monospace; font-weight: 600; background: #fffbeb; border: 1px solid #fde68a; }
 .msg.result .bubble {
-    color: var(--text-primary); font-family: monospace;
+    color: #e2e8f0; font-family: monospace;
     max-height: 400px; overflow: auto; font-size: 12px; line-height: 1.5; white-space: pre-wrap; background: #1e293b; border-radius: var(--radius-md);
 }
 .msg.error .bubble { color: var(--danger-color); }
