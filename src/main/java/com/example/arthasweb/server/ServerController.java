@@ -165,9 +165,28 @@ public class ServerController {
         }
         try {
             String content = executor.readRemoteFile(cfg.getAgentId(), path);
-            return ResponseEntity.ok(content);
+            return ResponseEntity.ok().contentType(org.springframework.http.MediaType.TEXT_PLAIN).body(content);
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body("read error: " + e.getMessage());
+        }
+    }
+
+    /** Download a remote file as raw bytes (for HTML flame graph, etc.). */
+    @GetMapping("/{id}/download-file")
+    public ResponseEntity<byte[]> downloadFile(@PathVariable String id, @RequestParam String path) {
+        ServerConfig cfg = serverService.get(id);
+        if (cfg == null) {
+            return ResponseEntity.notFound().build();
+        }
+        try {
+            byte[] content = executor.readRemoteFileBytes(cfg.getAgentId(), path);
+            String filename = path.contains("/") ? path.substring(path.lastIndexOf('/') + 1) : path;
+            return ResponseEntity.ok()
+                .header("Content-Disposition", "attachment; filename=\"" + filename + "\"")
+                .contentType(org.springframework.http.MediaType.APPLICATION_OCTET_STREAM)
+                .body(content);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(("download error: " + e.getMessage()).getBytes());
         }
     }
 

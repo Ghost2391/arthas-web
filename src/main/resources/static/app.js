@@ -380,23 +380,26 @@ async function toggleFlameGraph() {
         }
         if (!html && filePath) {
             try {
-                const r = await fetch('/api/servers/' + current.id + '/read-file?path=' + encodeURIComponent(filePath));
+                const r = await fetch('/api/servers/' + current.id + '/download-file?path=' + encodeURIComponent(filePath));
                 if (r.ok) {
-                    const catText = await r.text();
+                    const buf = await r.arrayBuffer();
+                    const dec = new TextDecoder('utf-8');
+                    const catText = dec.decode(buf);
                     const catIdx = catText.indexOf('<!DOCTYPE html>');
                     if (catIdx >= 0) html = catText.substring(catIdx);
                 }
             } catch(e) {}
         }
         if (html && html.length > 100) {
-            const blob = new Blob([html], {type:'text/html'});
-            const url = URL.createObjectURL(blob);
+            const downloadUrl = filePath
+                ? '/api/servers/' + current.id + '/download-file?path=' + encodeURIComponent(filePath)
+                : URL.createObjectURL(new Blob([html], {type:'text/html'}));
             const log = el('chatLog');
             const div = document.createElement('div');
             div.className = 'msg system';
             const b = document.createElement('div');
             b.className = 'bubble';
-            b.innerHTML = '📄 火焰图已生成' + (filePath ? ' (' + filePath + ')' : '') + '<br><a href="'+url+'" download="flamegraph.html" style="color:var(--primary-color);font-weight:600;">📥 点击下载火焰图</a>';
+            b.innerHTML = '📄 火焰图已生成' + (filePath ? ' (' + filePath + ')' : '') + '<br><a href="'+downloadUrl+'" download="flamegraph.html" style="color:var(--primary-color);font-weight:600;">📥 点击下载火焰图</a>';
             div.appendChild(b);
             const t = document.createElement('div');
             t.className = 'time';

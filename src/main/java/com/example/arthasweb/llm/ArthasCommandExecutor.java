@@ -216,6 +216,10 @@ public class ArthasCommandExecutor {
         return out.toString().trim();
     }
 
+    public byte[] readRemoteFileBytes(String agentId, String filePath) throws Exception {
+        return readRemoteFile(agentId, filePath).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+    }
+
     private static String escapeJson(String s) {
         StringBuilder sb = new StringBuilder();
         for (char c : s.toCharArray()) {
