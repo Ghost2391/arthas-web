@@ -16,6 +16,11 @@
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
     --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
     --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+    --bg-code: #1e293b;
+    --text-code: #f8fafc;
+    --bg-inline-code: rgba(15, 23, 42, 0.06);
+    --text-inline-code: #0f172a;
 }
 
 [data-theme="dark"] {
@@ -26,6 +31,11 @@
     --text-primary: #f8fafc;
     --text-secondary: #94a3b8;
     --primary-color: #3b82f6;
+
+    --bg-code: #0f172a;
+    --text-code: #e2e8f0;
+    --bg-inline-code: rgba(248, 250, 252, 0.1);
+    --text-inline-code: #f8fafc;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -164,18 +174,56 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
     line-height: 1.65; font-size: 14px; position: relative;
 }
 .msg.user .bubble { background: var(--primary-color); color: #fff; border-bottom-right-radius: 4px; }
-.msg.assistant .bubble { background: var(--bg-hover); color: var(--text-primary); border-bottom-left-radius: 4px; padding-right: 36px; border: 1px solid var(--border-color); }
+.msg.assistant .bubble { 
+    background: var(--bg-surface); 
+    color: var(--text-primary); 
+    border-bottom-left-radius: 4px; 
+    padding-right: 36px; 
+    border: 1px solid var(--border-color); 
+}
 .msg .bubble p { margin: 0 0 8px; }
 .msg .bubble p:last-child { margin-bottom: 0; }
-.msg .bubble code { background: rgba(0,0,0,.06); padding: 2px 5px; border-radius: 4px; font-family: monospace; font-size: 13px; }
-.msg .bubble pre { background: #1e293b; border-radius: 6px; padding: 10px 14px; overflow-x: auto; font-family: monospace; font-size: 13px; line-height: 1.5; margin: 8px 0; color: #e2e8f0; }
-.msg .bubble pre code { background: none; padding: 0; color: inherit; }
+
+/* 行内代码 <code> 适配 */
+.msg .bubble :not(pre) > code { 
+    background: var(--bg-inline-code); 
+    color: var(--text-inline-code);
+    padding: 2px 5px; 
+    border-radius: 4px; 
+    font-family: monospace; 
+    font-size: 13px; 
+}
+.msg.user .bubble :not(pre) > code { 
+    background: rgba(255,255,255,.2); 
+    color: #fff;
+}
+
+/* 多行代码块 <pre> 适配 */
+.msg .bubble pre { 
+    background: var(--bg-code); 
+    color: var(--text-code);
+    border-radius: 6px; 
+    padding: 12px 16px; 
+    overflow-x: auto; 
+    font-family: monospace; 
+    font-size: 13px; 
+    line-height: 1.5; 
+    margin: 8px 0; 
+}
+.msg .bubble pre code,
+.msg .bubble pre span,
+.msg .bubble pre li,
+.msg .bubble pre p { 
+    background: none !important; 
+    color: inherit !important; 
+    padding: 0;
+}
+
 .msg .bubble ul, .msg .bubble ol { padding-left: 20px; margin: 6px 0; }
 .msg .bubble li { margin: 3px 0; }
 .msg .bubble h2 { font-size: 15px; margin: 10px 0 4px; }
 .msg .bubble h3 { font-size: 14px; margin: 8px 0 4px; }
 .msg .bubble strong { font-weight: 600; }
-.msg.user .bubble code { background: rgba(255,255,255,.2); }
 .msg .bubble .copy-btn {
     position: absolute; top: 6px; right: 6px; width: 26px; height: 26px;
     border: none; background: rgba(0,0,0,.06); border-radius: 6px; cursor: pointer;
@@ -185,15 +233,36 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .msg .bubble .copy-btn:hover { background: rgba(0,0,0,.12); }
 .msg .bubble .copy-btn.copied { background: var(--success-color); color: #fff; opacity: 1; }
 
-.msg.system .bubble, .msg.error .bubble, .msg.status .bubble, .msg.command .bubble, .msg.result .bubble {
+.msg.error .bubble { color: var(--danger-color); }
+.msg.system .bubble, .msg.status .bubble {
     background: var(--bg-hover); color: var(--text-secondary); font-size: 13px; border-radius: 8px;
 }
 .msg.command .bubble { color: #b8860b; font-family: monospace; font-weight: 600; background: #fffbeb; border: 1px solid #fde68a; }
-.msg.result .bubble {
-    color: #e2e8f0; font-family: monospace;
-    max-height: 400px; overflow: auto; font-size: 12px; line-height: 1.5; white-space: pre-wrap; background: #1e293b; border-radius: var(--radius-md);
+
+/* 快捷工具执行结果 .result */
+.msg.result {
+    max-width: 95%;
 }
-.msg.error .bubble { color: var(--danger-color); }
+.msg.result .bubble {
+    background: var(--bg-code) !important; 
+    color: var(--text-code) !important;
+    font-family: monospace;
+    max-height: 400px; 
+    overflow: auto; 
+    font-size: 12px; 
+    line-height: 1.6; 
+    white-space: pre;
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    padding: 14px;
+}
+.msg.result .bubble * {
+    color: var(--text-code) !important;
+}
+.msg.result .bubble iframe {
+    background: #fff;
+    border-radius: calc(var(--radius-md) - 1px);
+}
 .msg .time { font-size: 11px; color: var(--text-secondary); margin-top: 4px; padding: 0 2px; }
 .msg.user .time { text-align: right; }
 
