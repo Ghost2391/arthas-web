@@ -253,7 +253,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
     overflow: auto; 
     font-size: 12px; 
     line-height: 1.6; 
-    white-space: pre;
+    white-space: pre-wrap;
     border-radius: var(--radius-md);
     border: 1px solid rgba(0, 0, 0, 0.15);
     max-width: 100%;

@@ -380,10 +380,12 @@ async function toggleFlameGraph() {
         }
         if (!html && filePath) {
             try {
-                const catResp = await exec('cat ' + filePath);
-                const catText = catResp.result?.content?.text || '';
-                const catIdx = catText.indexOf('<!DOCTYPE html>');
-                if (catIdx >= 0) html = catText.substring(catIdx);
+                const r = await fetch('/api/servers/' + current.id + '/read-file?path=' + encodeURIComponent(filePath));
+                if (r.ok) {
+                    const catText = await r.text();
+                    const catIdx = catText.indexOf('<!DOCTYPE html>');
+                    if (catIdx >= 0) html = catText.substring(catIdx);
+                }
             } catch(e) {}
         }
         if (html && html.length > 100) {

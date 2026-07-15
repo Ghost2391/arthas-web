@@ -14,9 +14,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.arthasweb.config.ArthasProperties;
+import com.example.arthasweb.llm.ArthasCommandExecutor;
+import com.example.arthasweb.tunnel.TunnelWebSocketHandler;
 
 import jakarta.servlet.http.HttpServletRequest;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.RequestParam;
 
 @RestController
@@ -25,10 +28,14 @@ public class ServerController {
 
     private final ServerService serverService;
     private final ArthasProperties arthasProperties;
+    private final ArthasCommandExecutor executor;
 
-    public ServerController(ServerService serverService, ArthasProperties arthasProperties) {
+    public ServerController(ServerService serverService, ArthasProperties arthasProperties,
+                            TunnelWebSocketHandler tunnelHandler,
+                            @Value("${server.port:8080}") int serverPort) {
         this.serverService = serverService;
         this.arthasProperties = arthasProperties;
+        this.executor = new ArthasCommandExecutor(arthasProperties, serverPort, tunnelHandler);
     }
 
     @GetMapping
@@ -147,6 +154,21 @@ public class ServerController {
         result.put("tunnelUrl", tunnelUrl);
         result.put("command", full);
         return ResponseEntity.ok(result);
+    }
+
+    /** Read a remote file from the agent's filesystem via HTTP API. */
+    @GetMapping("/{id}/read-file")
+    public ResponseEntity<String> readFile(@PathVariable String id, @RequestParam String path) {
+        ServerConfig cfg = serverService.get(id);
+        if (cfg == null) {
+            return ResponseEntity.notFound().build();
+        }
+        try {
+            String content = executor.readRemoteFile(cfg.getAgentId(), path);
+            return ResponseEntity.ok(content);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("read error: " + e.getMessage());
+        }
     }
 
     private Map<String, Object> toView(ServerConfig cfg) {

@@ -147,6 +147,75 @@ public class ArthasCommandExecutor {
         return text.isEmpty() ? ANSI.matcher(respBody).replaceAll("") : text;
     }
 
+    public String readRemoteFile(String agentId, String filePath) throws Exception {
+        String remoteHost = tunnelHandler != null ? tunnelHandler.getAgentRemoteHost(agentId) : null;
+        if (remoteHost == null || "127.0.0.1".equals(remoteHost) || "localhost".equals(remoteHost)) {
+            return execute(agentId, "cat " + filePath);
+        }
+        int httpPort = props.getHttpPort() > 0 ? props.getHttpPort() : 8563;
+        int timeout = props.getIdleSeconds() > 0 ? props.getIdleSeconds() : 30;
+        String url = "http://" + remoteHost + ":" + httpPort + "/api";
+        String body = "{\"action\":\"exec\",\"command\":\"cat " + escapeJson(filePath) + "\"}";
+
+        HttpRequest.Builder builder = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("Content-Type", "application/json")
+                .timeout(Duration.ofSeconds(timeout + 15))
+                .POST(HttpRequest.BodyPublishers.ofString(body));
+
+        String password = props.getPassword();
+        if (password != null && !password.isEmpty()) {
+            builder.header("Authorization", "Bearer " + password);
+        }
+
+        HttpClient client = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(10))
+                .build();
+
+        HttpResponse<String> response = client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+        int status = response.statusCode();
+        String respBody = response.body();
+
+        if (status >= 400) {
+            throw new RuntimeException("HTTP error " + status + " when reading file");
+        }
+
+        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        com.fasterxml.jackson.databind.JsonNode node = mapper.readTree(respBody);
+        String state = node.has("state") ? node.get("state").asText() : "";
+        if ("ERROR".equalsIgnoreCase(state) || "FAILED".equalsIgnoreCase(state)) {
+            throw new RuntimeException("remote error: " + (node.has("message") ? node.get("message").asText() : state));
+        }
+
+        com.fasterxml.jackson.databind.JsonNode bodyNode = node.has("body") ? node.get("body") : null;
+        com.fasterxml.jackson.databind.JsonNode results = null;
+        if (bodyNode != null && bodyNode.has("results")) {
+            results = bodyNode.get("results");
+        } else {
+            results = node.get("results");
+        }
+
+        StringBuilder out = new StringBuilder();
+        if (results != null && results.isArray()) {
+            for (com.fasterxml.jackson.databind.JsonNode r : results) {
+                String type = r.has("type") ? r.get("type").asText() : "";
+                if (r.isTextual()) {
+                    out.append(r.asText());
+                } else if (r.has("output")) {
+                    out.append(r.get("output").asText());
+                } else if ("status".equals(type)) {
+                    continue;
+                } else {
+                    out.append(mapper.writerWithDefaultPrettyPrinter().writeValueAsString(r));
+                }
+                out.append("\n");
+            }
+        } else if (results != null && results.isTextual()) {
+            out.append(results.asText());
+        }
+        return out.toString().trim();
+    }
+
     private static String escapeJson(String s) {
         StringBuilder sb = new StringBuilder();
         for (char c : s.toCharArray()) {
