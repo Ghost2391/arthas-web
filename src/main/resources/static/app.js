@@ -342,78 +342,69 @@ async function toggleFlameGraph() {
         addChat('system', '⚠ agent 未连接。');
         return;
     }
-    if (!flameRunning) {
-        flameRunning = true;
-        el('flameGraphBtn').innerHTML = icons.loader;
-        el('flameGraphBtn').disabled = true;
-        try {
-            const exec = (cmd) => fetch('/mcp', {method:'POST',headers:{'Content-Type':'application/json'},
-                body: JSON.stringify({jsonrpc:'2.0',id:Date.now(),method:'tools/call',
-                    params:{name:'execute_arthas_command',arguments:{target:current.agentId,command:cmd}}})
-            }).then(r => r.json());
-            const startResp = await exec('profiler start');
-            const startText = startResp.result?.content?.text || '';
-            if (startText.includes('Current OS do not support') || startText.includes('Only support Linux')) {
-                addChat('error', '❌ AsyncProfiler 不支持 Windows，火焰图仅支持 Linux/Mac 环境。');
-                return;
-            }
-            if (startText.includes('already started')) {
-                await exec('profiler stop');
-                await new Promise(r => setTimeout(r, 1000));
-                await exec('profiler start');
-            }
-            addChat('system', '⏱ 采集 30 秒中...');
-            await new Promise(r => setTimeout(r, 30000));
-            const j = await exec('profiler stop --format html');
-            let text = j.result?.content?.text || j.result?.content?.[0]?.text || '无输出';
-            const htmlStart = text.indexOf('<!DOCTYPE html>');
-            if (htmlStart >= 0) {
-                // 内联 HTML（tunnel 模式）
-                const html = text.substring(htmlStart);
-                const blob = new Blob([html], {type:'text/html'});
-                const url = URL.createObjectURL(blob);
-                const log = el('chatLog');
-                const div = document.createElement('div');
-                div.className = 'msg result';
-                div.innerHTML = '<div class="bubble" style="padding:0;height:500px;"><iframe src="' + url + '" style="width:100%;height:100%;border:none;" sandbox="allow-scripts"></iframe></div>';
-                log.appendChild(div);
-                log.scrollTop = log.scrollHeight;
-            } else {
-                // HTTP API 返回文件路径，尝试 cat 读取
-                const match = text.match(/文件已生成:\s*(.+)/);
-                if (match) {
-                    const filePath = match[1].trim();
-                    addChat('system', '📄 火焰图已生成: ' + filePath + '\n正在加载...');
-                    try {
-                        const catResp = await exec('cat ' + filePath);
-                        const catText = catResp.result?.content?.text || '';
-                        const catHtml = catText.indexOf('<!DOCTYPE html>') >= 0 ? catText.substring(catText.indexOf('<!DOCTYPE html>')) : '';
-                        if (catHtml.length > 100) {
-                            const blob = new Blob([catHtml], {type:'text/html'});
-                            const url = URL.createObjectURL(blob);
-                            const log = el('chatLog');
-                            const div = document.createElement('div');
-                            div.className = 'msg result';
-                            div.innerHTML = '<div class="bubble" style="padding:0;height:500px;"><iframe src="' + url + '" style="width:100%;height:100%;border:none;" sandbox="allow-scripts"></iframe></div>';
-                            log.appendChild(div);
-                            log.scrollTop = log.scrollHeight;
-                        } else {
-                            addChat('system', text);
-                        }
-                    } catch(e) {
-                        addChat('system', text);
-                    }
-                } else {
-                    addChat('system', text);
-                }
-            }
-        } catch(e) {
-            addChat('error', '火焰图失败: ' + e.message);
-        } finally {
-            flameRunning = false;
-            el('flameGraphBtn').innerHTML = icons.flame + ' 火焰图';
-            el('flameGraphBtn').disabled = false;
+    if (flameRunning) return;
+    flameRunning = true;
+    el('flameGraphBtn').innerHTML = icons.loader;
+    el('flameGraphBtn').disabled = true;
+    try {
+        const exec = (cmd) => fetch('/mcp', {method:'POST',headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({jsonrpc:'2.0',id:Date.now(),method:'tools/call',
+                params:{name:'execute_arthas_command',arguments:{target:current.agentId,command:cmd}}})
+        }).then(r => r.json());
+        const startResp = await exec('profiler start');
+        const startText = startResp.result?.content?.text || '';
+        if (startText.includes('Current OS do not support') || startText.includes('Only support Linux')) {
+            addChat('error', '❌ AsyncProfiler 不支持 Windows，火焰图仅支持 Linux/Mac 环境。');
+            return;
         }
+        if (startText.includes('already started')) {
+            await exec('profiler stop');
+            await new Promise(r => setTimeout(r, 1000));
+            await exec('profiler start');
+        }
+        addChat('system', '⏱ 采集 30 秒中...');
+        await new Promise(r => setTimeout(r, 30000));
+
+        const j = await exec('profiler stop --format html');
+        let text = j.result?.content?.text || j.result?.content?.[0]?.text || '';
+
+        let html = '';
+        let filePath = '';
+        const htmlIdx = text.indexOf('<!DOCTYPE html>');
+        if (htmlIdx >= 0) {
+            html = text.substring(htmlIdx);
+        }
+        const pathMatch = text.match(/文件已生成:\s*(.+)/);
+        if (pathMatch) {
+            filePath = pathMatch[1].trim();
+        }
+        if (!html && filePath) {
+            try {
+                const catResp = await exec('cat ' + filePath);
+                const catText = catResp.result?.content?.text || '';
+                const catIdx = catText.indexOf('<!DOCTYPE html>');
+                if (catIdx >= 0) html = catText.substring(catIdx);
+            } catch(e) {}
+        }
+        if (html && html.length > 100) {
+            const blob = new Blob([html], {type:'text/html'});
+            const url = URL.createObjectURL(blob);
+            const div = document.createElement('div');
+            div.className = 'msg result';
+            div.innerHTML = '<div class="bubble" style="padding:0;height:500px;display:flex;flex-direction:column;"><div style="display:flex;justify-content:flex-end;gap:12px;padding:6px 12px;background:var(--bg-code);border-bottom:1px solid rgba(255,255,255,0.1);flex-shrink:0;"><a href="'+url+'" download="flamegraph.html" style="color:#93c5fd;font-size:12px;text-decoration:none;">📥 下载</a></div><iframe src="' + url + '" style="width:100%;flex:1;border:none;" sandbox="allow-scripts"></iframe></div>';
+            el('chatLog').appendChild(div);
+            el('chatLog').scrollTop = el('chatLog').scrollHeight;
+        } else if (filePath) {
+            addChat('system', '📄 火焰图已生成: ' + filePath);
+        } else {
+            addChat('system', text || '火焰图完成');
+        }
+    } catch(e) {
+        addChat('error', '火焰图失败: ' + e.message);
+    } finally {
+        flameRunning = false;
+        el('flameGraphBtn').innerHTML = icons.flame + ' 火焰图';
+        el('flameGraphBtn').disabled = false;
     }
 }
 
