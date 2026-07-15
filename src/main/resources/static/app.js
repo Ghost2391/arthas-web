@@ -15,6 +15,15 @@ let chatConnected = false;
 let modelList = [];
 let currentModel = null;
 
+const icons = {
+    sun: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>',
+    moon: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>',
+    clipboard: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>',
+    check: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+    loader: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg>',
+    flame: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>',
+};
+
 async function loadModels() {
     try {
         const r = await fetch('/api/models');
@@ -108,13 +117,13 @@ function toggleTheme() {
     const html = document.documentElement;
     const isDark = html.getAttribute('data-theme') === 'dark';
     html.setAttribute('data-theme', isDark ? 'light' : 'dark');
-    el('themeToggle').textContent = isDark ? '🌙' : '☀️';
+    el('themeToggle').innerHTML = isDark ? icons.moon : icons.sun;
     localStorage.setItem('theme', isDark ? 'light' : 'dark');
 }
 (function initTheme() {
     const saved = localStorage.getItem('theme') || 'light';
     document.documentElement.setAttribute('data-theme', saved);
-    el('themeToggle').textContent = saved === 'dark' ? '☀️' : '🌙';
+    el('themeToggle').innerHTML = saved === 'dark' ? icons.sun : icons.moon;
 })();
 
 /* ---------- Copy Text (works on http too) ---------- */
@@ -194,14 +203,14 @@ function addChat(type, text, skipTime) {
         }
         const copyBtn = document.createElement('button');
         copyBtn.className = 'copy-btn';
-        copyBtn.textContent = '📋';
+        copyBtn.innerHTML = icons.clipboard;
         copyBtn.title = '复制';
         copyBtn.onclick = (e) => {
             e.stopPropagation();
             copyText(text);
-            copyBtn.textContent = '✓';
+            copyBtn.innerHTML = icons.check;
             copyBtn.classList.add('copied');
-            setTimeout(() => { copyBtn.textContent = '📋'; copyBtn.classList.remove('copied'); }, 1500);
+            setTimeout(() => { copyBtn.innerHTML = icons.clipboard; copyBtn.classList.remove('copied'); }, 1500);
         };
         b.appendChild(copyBtn);
     } else {
@@ -335,7 +344,7 @@ async function toggleFlameGraph() {
     }
     if (!flameRunning) {
         flameRunning = true;
-        el('flameGraphBtn').textContent = '⏳';
+        el('flameGraphBtn').innerHTML = icons.loader;
         el('flameGraphBtn').disabled = true;
         try {
             const exec = (cmd) => fetch('/mcp', {method:'POST',headers:{'Content-Type':'application/json'},
@@ -402,7 +411,7 @@ async function toggleFlameGraph() {
             addChat('error', '火焰图失败: ' + e.message);
         } finally {
             flameRunning = false;
-            el('flameGraphBtn').textContent = '🔥';
+            el('flameGraphBtn').innerHTML = icons.flame + ' 火焰图';
             el('flameGraphBtn').disabled = false;
         }
     }
@@ -429,7 +438,7 @@ el('deleteBtn').onclick = async () => {
 el('chatSend').onclick = sendChat;
 el('clearChatBtn').onclick = () => { if (chatWs && chatWs.readyState === 1) { chatWs.send('/clear'); el('chatLog').innerHTML = ''; } };
 el('chatText').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } });
-el('copyCmd').onclick = () => { copyText(el('attachCmd').textContent); el('copyCmd').textContent='✅ 已复制'; setTimeout(()=>el('copyCmd').textContent='📋 复制命令',1500); };
+el('copyCmd').onclick = () => { copyText(el('attachCmd').textContent); el('copyCmd').innerHTML = icons.check + ' 已复制'; setTimeout(()=>el('copyCmd').innerHTML=icons.clipboard + ' 复制命令',1500); };
 el('pidInput').addEventListener('input', loadAttach);
 el('flameGraphBtn').onclick = toggleFlameGraph;
 document.querySelectorAll('.tab').forEach(t => t.onclick = () => switchTab(t.dataset.tab));

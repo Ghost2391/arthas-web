@@ -43,6 +43,8 @@ body { font-family: var(--font-family); background-color: var(--bg-base); color:
 ul { list-style: none; }
 button { font-family: inherit; cursor: pointer; border: none; background: none; }
 
+.icon { display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; }
+
 /* Header */
 .app-header { display: flex; justify-content: space-between; align-items: center; padding: 0 20px; height: 56px; background-color: var(--bg-surface); border-bottom: 1px solid var(--border-color); }
 .brand { display: flex; align-items: center; gap: 12px; }

@@ -16,7 +16,7 @@
         </div>
     </div>
     <div class="panel-actions">
-        <button id="themeToggle" class="icon-btn" title="切换主题">🌙</button>
+        <button id="themeToggle" class="icon-btn" title="切换主题"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-moon"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
     </div>
 </header>
 <div class="layout">
@@ -49,11 +49,11 @@
                     </div>
                 </div>
                 <div class="tabs">
-                    <button class="tab active" data-tab="chat">💬 对话</button>
-                    <button class="tab" data-tab="info">🔗 连接</button>
+                    <button class="tab active" data-tab="chat"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-message-square"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> 对话</button>
+                    <button class="tab" data-tab="info"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-link"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> 连接</button>
                 </div>
                 <div class="panel-actions">
-                    <button id="exportChatBtn" class="icon-btn" title="导出对话">📥</button>
+                    <button id="exportChatBtn" class="icon-btn" title="导出对话"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-download"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
                     <button id="editBtn" class="btn btn-secondary btn-sm">编辑</button>
                     <button id="deleteBtn" class="btn btn-danger btn-sm">删除</button>
                 </div>
@@ -71,7 +71,7 @@
                         <button class="tool-badge" data-tool="classloader">clsldr</button>
                         <button class="tool-badge" data-tool="sc -d com.demo.*">sc</button>
                         <button class="tool-badge" data-tool="sm com.demo.DemoController">sm</button>
-                        <button class="tool-badge flame-btn" id="flameGraphBtn">🔥 火焰图</button>
+                        <button class="tool-badge flame-btn" id="flameGraphBtn"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-flame"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg> 火焰图</button>
                     </div>
                     <div class="chat-toolbar">
                         <div class="settings-group">
@@ -87,7 +87,7 @@
                                 <input id="thinkingToggle" type="checkbox"><span>思考</span>
                             </label>
                         </div>
-                        <button id="clearChatBtn" class="btn btn-ghost btn-sm">🗑 清空</button>
+                        <button id="clearChatBtn" class="btn btn-ghost btn-sm"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-trash"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> 清空</button>
                     </div>
                     <div class="input-area">
                         <textarea id="chatText" placeholder="输入问题，或使用上方快捷工具一键诊断"></textarea>
@@ -107,7 +107,7 @@
                         </div>
                         <div class="code-block-wrapper">
                             <pre id="attachCmd" class="code-block"></pre>
-                            <button id="copyCmd" class="btn btn-sm copy-btn">📋 复制命令</button>
+                            <button id="copyCmd" class="btn btn-sm copy-btn"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-clipboard"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg> 复制命令</button>
                         </div>
                         <div class="agent-info">
                             agentId：<code id="agentIdText" class="inline-code"></code>
@@ -123,7 +123,7 @@
     <div class="modal-content">
         <div class="modal-header">
             <h3 id="modalTitle">添加服务器</h3>
-            <button id="modalCancel" class="icon-btn">✕</button>
+            <button id="modalCancel" class="icon-btn"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-x"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
         <div class="modal-body">
             <div class="form-group">
