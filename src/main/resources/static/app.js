@@ -389,11 +389,19 @@ async function toggleFlameGraph() {
         if (html && html.length > 100) {
             const blob = new Blob([html], {type:'text/html'});
             const url = URL.createObjectURL(blob);
+            const log = el('chatLog');
             const div = document.createElement('div');
-            div.className = 'msg result';
-            div.innerHTML = '<div class="bubble" style="padding:0;height:500px;display:flex;flex-direction:column;"><div style="display:flex;justify-content:flex-end;gap:12px;padding:6px 12px;background:var(--bg-code);border-bottom:1px solid rgba(255,255,255,0.1);flex-shrink:0;"><a href="'+url+'" download="flamegraph.html" style="color:#93c5fd;font-size:12px;text-decoration:none;">📥 下载</a></div><iframe src="' + url + '" style="width:100%;flex:1;border:none;" sandbox="allow-scripts"></iframe></div>';
-            el('chatLog').appendChild(div);
-            el('chatLog').scrollTop = el('chatLog').scrollHeight;
+            div.className = 'msg system';
+            const b = document.createElement('div');
+            b.className = 'bubble';
+            b.innerHTML = '📄 火焰图已生成' + (filePath ? ' (' + filePath + ')' : '') + '<br><a href="'+url+'" download="flamegraph.html" style="color:var(--primary-color);font-weight:600;">📥 点击下载火焰图</a>';
+            div.appendChild(b);
+            const t = document.createElement('div');
+            t.className = 'time';
+            t.textContent = new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'});
+            div.appendChild(t);
+            log.appendChild(div);
+            log.scrollTop = log.scrollHeight;
         } else if (filePath) {
             addChat('system', '📄 火焰图已生成: ' + filePath);
         } else {
