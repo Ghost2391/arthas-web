@@ -368,38 +368,29 @@ async function toggleFlameGraph() {
         const j = await exec('profiler stop --format html');
         let text = j.result?.content?.text || j.result?.content?.[0]?.text || '';
 
-        let html = '';
         let filePath = '';
-        const htmlIdx = text.indexOf('<!DOCTYPE html>');
-        if (htmlIdx >= 0) {
-            html = text.substring(htmlIdx);
-        }
         const pathMatch = text.match(/文件已生成:\s*(.+)/);
         if (pathMatch) {
             filePath = pathMatch[1].trim();
+        } else {
+            // also try: "OK arthas-output/xxx.html"
+            const m = text.match(/(?:OK\s+)?(arthas-output\/\S+\.\w+)/);
+            if (m) filePath = m[1];
         }
-        if (!html && filePath) {
-            try {
-                const r = await fetch('/api/servers/' + current.id + '/download-file?path=' + encodeURIComponent(filePath));
-                if (r.ok) {
-                    const buf = await r.arrayBuffer();
-                    const dec = new TextDecoder('utf-8');
-                    const catText = dec.decode(buf);
-                    const catIdx = catText.indexOf('<!DOCTYPE html>');
-                    if (catIdx >= 0) html = catText.substring(catIdx);
-                }
-            } catch(e) {}
-        }
-        if (html && html.length > 100) {
-            const downloadUrl = filePath
-                ? '/api/servers/' + current.id + '/download-file?path=' + encodeURIComponent(filePath)
-                : URL.createObjectURL(new Blob([html], {type:'text/html'}));
+        if (filePath) {
+            const proxyPort = 8564;
+            const filename = filePath.replace(/\\/g,'/').split('/').pop();
+            const directUrl = 'http://' + current.ip + ':' + proxyPort + '/arthas-output/' + filename;
+            const proxyUrl = '/api/servers/' + current.id + '/download-file?path=' + encodeURIComponent(filePath);
             const log = el('chatLog');
             const div = document.createElement('div');
             div.className = 'msg system';
             const b = document.createElement('div');
             b.className = 'bubble';
-            b.innerHTML = '📄 火焰图已生成' + (filePath ? ' (' + filePath + ')' : '') + '<br><a href="'+downloadUrl+'" download="flamegraph.html" style="color:var(--primary-color);font-weight:600;">📥 点击下载火焰图</a>';
+            b.innerHTML = '📄 火焰图已生成<br>'
+                + '<a href="' + directUrl + '" target="_blank" style="color:var(--primary-color);font-weight:600;">📥 从服务器下载（原生）</a>'
+                + ' <a href="' + proxyUrl + '" download="flamegraph.html" style="color:var(--text-secondary);font-size:13px;">(代理)</a>'
+                + '<br><span style="font-size:12px;color:var(--text-secondary);">路径: ' + filePath + '</span>';
             div.appendChild(b);
             const t = document.createElement('div');
             t.className = 'time';
@@ -407,10 +398,8 @@ async function toggleFlameGraph() {
             div.appendChild(t);
             log.appendChild(div);
             log.scrollTop = log.scrollHeight;
-        } else if (filePath) {
-            addChat('system', '📄 火焰图已生成: ' + filePath);
-        } else {
-            addChat('system', text || '火焰图完成');
+        } else if (text) {
+            addChat('system', text);
         }
     } catch(e) {
         addChat('error', '火焰图失败: ' + e.message);
